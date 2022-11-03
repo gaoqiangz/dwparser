@@ -1,0 +1,24 @@
+[package]
+name = "dwparser"
+version = "0.1.0"
+edition = "2021"
+authors = ["gaoqiangz <gaoqiangz@msn.com>"]
+keywords = ["pb", "powerbuilder", "datawindow", "dw", "parser"]
+categories = ["parser"]
+description = "DataWindow Syntax Parser"
+documentation = "https://docs.rs/dwparser"
+repository = "https://github.com/gaoqiangz/dwparser"
+license = "BSD-2-Clause"
+include = ["/Cargo.toml", "/LICENSE", "/README.md", "/src/**", "/examples/**", "/assets/**"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nom = "7.1.1"
+indexmap = { version = "1.9.1", optional = true }
+
+[features]
+default = ["indexmap"]
