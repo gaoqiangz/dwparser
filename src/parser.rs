@@ -91,14 +91,10 @@ pub fn friendly_error(input: &str, err: Error) -> String {
 /// (dwo.srd,comment)
 /// ```
 fn srd_file_header(input: &str) -> ParseResult<(Option<Cow<str>>, Option<Cow<str>>)> {
-    let (input, name) = context(
-        "header name",
-        opt(delimited(tag("$PBExportHeader$"), take_till(|c| c == '\r'), crlf))
-    )(input)?;
-    let (input, comment) = context(
-        "header comment",
-        opt(delimited(tag("$PBExportComments$"), take_till(|c| c == '\r'), crlf))
-    )(input)?;
+    let (input, name) =
+        context("header name", opt(delimited(tag("$PBExportHeader$"), is_not("\r"), crlf)))(input)?;
+    let (input, comment) =
+        context("header comment", opt(delimited(tag("$PBExportComments$"), is_not("\r"), crlf)))(input)?;
     Ok((input, (name.map(|v| v.into()), comment.map(|v| v.into()))))
 }
 
