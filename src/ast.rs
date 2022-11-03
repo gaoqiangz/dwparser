@@ -102,7 +102,7 @@ impl<'a> Display for DWSyntax<'a> {
         if let Some(comment) = &self.comment {
             write!(f, "$PBExportComments${}\r\n", comment)?;
         }
-        write!(f, "release {}\r\n", self.version)?;
+        write!(f, "release {};\r\n", self.version)?;
         if !self.datawindow.is_empty() {
             write!(f, "datawindow({})\r\n", MapDisplay(&self.datawindow))?;
         }

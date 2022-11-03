@@ -593,7 +593,7 @@ mod tests {
         });
         assert_eq!(
             dw.to_string(),
-            "release 12.5\r\ndatawindow(empty_dqt=\"\" empty_sqt='' num=1073741824 lit=yes)\r\nheader(num=564 dqt=\"536870912\" sqt='100')\r\ntable(column=(type=char(80  ) updatewhereclause=yes name=col1 dbname=\"col1\")\r\nretrieve=\"SQL\n        CLAUSE \" arguments=((\"a\", string), (\"b\", string)))\r\ngroup(trailer.height=76 by=(\"col1\", 'col2'))\r\ncompute(band=trailer.5 alignment=\"2\" name=compute_1 expression=\"count(jw_no for group 5 )+~\"件~\"\" x1=\"0\")\r\n"
+            "release 12.5;\r\ndatawindow(empty_dqt=\"\" empty_sqt='' num=1073741824 lit=yes)\r\nheader(num=564 dqt=\"536870912\" sqt='100')\r\ntable(column=(type=char(80  ) updatewhereclause=yes name=col1 dbname=\"col1\")\r\nretrieve=\"SQL\n        CLAUSE \" arguments=((\"a\", string), (\"b\", string)))\r\ngroup(trailer.height=76 by=(\"col1\", 'col2'))\r\ncompute(band=trailer.5 alignment=\"2\" name=compute_1 expression=\"count(jw_no for group 5 )+~\"件~\"\" x1=\"0\")\r\n"
         );
     }
 }
