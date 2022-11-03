@@ -76,6 +76,14 @@ pub struct DWSyntax<'a> {
     /// table(column=(type=type) column=(type=type) key=value key=value)
     /// ```
     pub table: ItemTable<'a>,
+    /// `data`项
+    ///
+    /// # Syntax
+    ///
+    /// ```txt
+    /// data(0,1,2)
+    /// ```
+    pub data: Option<Cow<'a,str>>,
     /// 普通语法项
     ///
     /// # Syntax
@@ -102,7 +110,7 @@ impl<'a> Display for DWSyntax<'a> {
         if let Some(comment) = &self.comment {
             write!(f, "$PBExportComments${}\r\n", comment)?;
         }
-        write!(f, "release {}\r\n", self.version)?;
+        write!(f, "release {};\r\n", self.version)?;
         if !self.datawindow.is_empty() {
             write!(f, "datawindow({})\r\n", MapDisplay(&self.datawindow))?;
         }
@@ -120,6 +128,9 @@ impl<'a> Display for DWSyntax<'a> {
         }
         if !self.table.is_empty() {
             write!(f, "{}\r\n", self.table)?;
+        }
+        if let Some(data) = &self.data{
+            write!(f, "data{}\r\n", data)?;
         }
         for item in &self.items {
             write!(f, "{item}\r\n")?;

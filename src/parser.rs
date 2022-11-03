@@ -10,14 +10,15 @@ type ParseResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 #[derive(Debug, PartialEq)]
 enum SumItem<'a> {
     Item(Item<'a>),
-    ItemTable(ItemTable<'a>)
+    ItemTable(ItemTable<'a>),
+    ItemData(Option<Cow<'a,str>>)
 }
 
 /// 解析语法
 pub fn parse(input: &str) -> Result<DWSyntax> {
     let (input, (name, comment)) = srd_file_header(input)?;
     let (input, version) = version(input)?;
-    let (input, (datawindow, header, summary, footer, detail, table, items)) = fold_many1(
+    let (input, (datawindow, header, summary, footer, detail, table, data, items)) = fold_many1(
         item,
         || {
             (
@@ -27,10 +28,11 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
                 Default::default(),
                 Default::default(),
                 Default::default(),
+                Default::default(),
                 Vec::with_capacity(2048)
             )
         },
-        |(mut datawindow, mut header, mut summary, mut footer, mut detail, mut table, mut items), item| {
+        |(mut datawindow, mut header, mut summary, mut footer, mut detail, mut table,mut data, mut items), item| {
             match item {
                 SumItem::Item(item) => {
                     match item.kind.as_ref() {
@@ -44,9 +46,12 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
                 },
                 SumItem::ItemTable(item) => {
                     table = item;
+                },
+                SumItem::ItemData(item)=>{
+                    data = item;
                 }
             }
-            (datawindow, header, summary, footer, detail, table, items)
+            (datawindow, header, summary, footer, detail, table, data, items)
         }
     )(input)?;
     let (input, _) = multispace0(input)?;
@@ -64,6 +69,7 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
         footer,
         detail,
         table,
+        data,
         items
     })
 }
@@ -202,6 +208,22 @@ fn item(input: &str) -> ParseResult<SumItem> {
             }
         }
     }
+    /// `data`语法项解析
+    ///
+    /// # Input
+    ///
+    /// ```txt
+    /// data(...)
+    /// ```
+    #[inline]
+    fn data(input: &str) -> ParseResult<SumItem> {
+        let (input,value) = pair(take_while(|c|{c != '\r'}),crlf)(input)?;
+        Ok((
+            input,
+            SumItem::ItemData(Some(Cow::from(value.0)))
+        )
+        )
+    }
     fn parse(input: &str) -> ParseResult<SumItem> {
         let (input, kind) = delimited(
             multispace0,
@@ -210,7 +232,9 @@ fn item(input: &str) -> ParseResult<SumItem> {
         )(input)?;
         if kind == "table" {
             table(input)
-        } else {
+        } else if kind == "data"{
+            data(input)
+        } else{
             normal(kind, input)
         }
     }
@@ -467,6 +491,13 @@ mod tests {
     }
 
     #[test]
+    fn test_item_data(){
+        let (input,output) = test_parser("data(0,\"自增ID\",\"参数(不)补齐\",)\r\naaa\r\n123", item);
+        assert_eq!(input,"aaa\r\n123");
+        assert_eq!(output,SumItem::ItemData(Some(Cow::from("(0,\"自增ID\",\"参数(不)补齐\",)"))));
+    }
+
+    #[test]
     fn test_value_map() {
         let (input, output) = test_parser("(key1=123.45 key2=value key3='abc'key4=\"abc\")", value_map);
         assert_eq!(input, "");
@@ -560,6 +591,7 @@ mod tests {
                     ),
                 ])
             },
+            data: Default::default(),
             items: vec![
                 Item {
                     kind: "group".into(),
@@ -593,7 +625,7 @@ mod tests {
         });
         assert_eq!(
             dw.to_string(),
-            "release 12.5\r\ndatawindow(empty_dqt=\"\" empty_sqt='' num=1073741824 lit=yes)\r\nheader(num=564 dqt=\"536870912\" sqt='100')\r\ntable(column=(type=char(80  ) updatewhereclause=yes name=col1 dbname=\"col1\")\r\nretrieve=\"SQL\n        CLAUSE \" arguments=((\"a\", string), (\"b\", string)))\r\ngroup(trailer.height=76 by=(\"col1\", 'col2'))\r\ncompute(band=trailer.5 alignment=\"2\" name=compute_1 expression=\"count(jw_no for group 5 )+~\"件~\"\" x1=\"0\")\r\n"
+            "release 12.5;\r\ndatawindow(empty_dqt=\"\" empty_sqt='' num=1073741824 lit=yes)\r\nheader(num=564 dqt=\"536870912\" sqt='100')\r\ntable(column=(type=char(80  ) updatewhereclause=yes name=col1 dbname=\"col1\")\r\nretrieve=\"SQL\n        CLAUSE \" arguments=((\"a\", string), (\"b\", string)))\r\ngroup(trailer.height=76 by=(\"col1\", 'col2'))\r\ncompute(band=trailer.5 alignment=\"2\" name=compute_1 expression=\"count(jw_no for group 5 )+~\"件~\"\" x1=\"0\")\r\n"
         );
     }
 }
