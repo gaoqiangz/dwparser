@@ -11,7 +11,7 @@ type ParseResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 enum SumItem<'a> {
     Item(Item<'a>),
     ItemTable(ItemTable<'a>),
-    ItemData(Option<Cow<'a,str>>)
+    ItemData(Vec<Value<'a>>)
 }
 
 /// 解析语法
@@ -28,7 +28,7 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
                 Default::default(),
                 Default::default(),
                 Default::default(),
-                Default::default(),
+                Vec::with_capacity(2048),
                 Vec::with_capacity(2048)
             )
         },
@@ -213,12 +213,24 @@ fn item(input: &str) -> ParseResult<SumItem> {
     /// ```
     #[inline]
     fn data(input: &str) -> ParseResult<SumItem> {
-        let (input,value) = pair(take_while(|c|{c != '\r'}),crlf)(input)?;
-        Ok((
-            input,
-            SumItem::ItemData(Some(Cow::from(value.0)))
-        )
-        )
+        let mut parser = delimited(
+            tag("("),
+            delimited(
+                multispace0,
+                separated_list0(
+                    preceded(tag(","), space1),
+                    separated_list0(
+                        tag(","),
+                        alt((value::string, value::literal, value::number, fail)),
+                    )
+                    .map(Value::List),
+                ),
+                tag(","),
+            ),
+            tag(")"),
+        );
+        let (input, value) = parser(input)?;
+        Ok((input, SumItem::ItemData(value)))
     }
     fn parse(input: &str) -> ParseResult<SumItem> {
         let (input, kind) = delimited(
@@ -488,9 +500,20 @@ mod tests {
 
     #[test]
     fn test_item_data(){
-        let (input,output) = test_parser("data(0,\"自增ID\",\"参数(不)补齐\",)\r\naaa\r\n123", item);
-        assert_eq!(input,"aaa\r\n123");
-        assert_eq!(output,SumItem::ItemData(Some(Cow::from("(0,\"自增ID\",\"参数(不)补齐\",)"))));
+        let dw = r#"data( 0,"自增ID","参数1", 1,"固定字符","参数2",)abc"#;
+        let (input,output) = test_parser(dw, item);
+        assert_eq!(input,"abc");
+        assert_eq!(output,SumItem::ItemData(vec![
+                Value::List(vec![
+                    Value::Number(0.0),
+                    Value::DoubleQuotedString(Cow::from("自增ID")),
+                    Value::DoubleQuotedString(Cow::from("参数1"))],),
+                Value::List(vec![
+                    Value::Number(1.0),
+                    Value::DoubleQuotedString(Cow::from("固定字符")),
+                    Value::DoubleQuotedString(Cow::from("参数2"))
+                ])
+                ]));
     }
 
     #[test]

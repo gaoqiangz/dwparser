@@ -1,6 +1,8 @@
 use dwparser::DWSyntax;
 use std::{
-    fs::File, io::{self, BufReader, Read}, time::Instant
+    fs::File,
+    io::{self, BufReader, Read},
+    time::Instant,
 };
 
 fn from_file(file_path: &str) -> io::Result<String> {

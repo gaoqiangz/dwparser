@@ -83,7 +83,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// data(0,1,2)
     /// ```
-    pub data: Option<Cow<'a,str>>,
+    pub data: Vec<Value<'a>>,
     /// 普通语法项
     ///
     /// # Syntax
@@ -129,8 +129,8 @@ impl<'a> Display for DWSyntax<'a> {
         if !self.table.is_empty() {
             write!(f, "{}\r\n", self.table)?;
         }
-        if let Some(data) = &self.data{
-            write!(f, "data{}\r\n", data)?;
+        if !self.data.is_empty() {
+            write!(f,"data({})\r\n",DataDisplay(&self.data))?;
         }
         for item in &self.items {
             write!(f, "{item}\r\n")?;
@@ -334,6 +334,22 @@ impl<'a> Display for ListDisplay<'a> {
                 write!(f, ", {value}")?;
             }
             first = false;
+        }
+        Ok(())
+    }
+}
+
+struct DataDisplay<'a>(&'a Vec<Value<'a>>);
+
+impl<'a> Display for DataDisplay<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for value in self.0 {
+            write!(f," ")?;
+            if let Value::List(item) = value{
+                for v in item{
+                    write!(f,"{},",v)?;
+                }
+            }
         }
         Ok(())
     }
