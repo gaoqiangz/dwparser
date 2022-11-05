@@ -59,6 +59,7 @@ pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result
             let name = selector.next().unwrap();
             if name == "header" {
                 let mut values = &syn.header;
+                //header.<group #>.prop
                 if selector.len() >= 2 {
                     let name = selector.next().unwrap();
                     if let Ok(level) = name.parse() {
@@ -77,6 +78,7 @@ pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result
                 values
             } else if name == "footer" {
                 let mut values = &syn.footer;
+                //footer.<group #>.prop
                 if selector.len() >= 2 {
                     let name = selector.next().unwrap();
                     if let Ok(level) = name.parse() {
@@ -95,6 +97,7 @@ pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result
                 values
             } else if name == "trailer" {
                 let mut values = None;
+                //trailer.<group #>.prop
                 if selector.len() >= 2 {
                     if let Ok(level) = selector.next().unwrap().parse() {
                         if let Some(item) = find_group(&syn.items, level) {
@@ -115,6 +118,7 @@ pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result
                 }
             } else if name == "group" {
                 let mut values = None;
+                //group.<group #>.prop
                 if selector.len() >= 2 {
                     if let Ok(level) = selector.next().unwrap().parse() {
                         if let Some(item) = find_group(&syn.items, level) {
@@ -138,6 +142,8 @@ pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result
                 &syn.detail
             } else if name == "table" {
                 let mut values = &syn.table.values;
+                //- column.<column #>.prop
+                //- column.<column name>.prop
                 if selector.len() >= 3 {
                     let name = selector.next().unwrap();
                     if name == "column" {
