@@ -98,7 +98,7 @@ impl<'a> DWSyntax<'a> {
     /// 兼容`DataWindow::Describe`参数和返回值
     #[cfg(feature = "describe")]
     pub fn describe(&self, selector: &str) -> String {
-        match parser::describe(self, selector) {
+        match parser::query::describe(self, selector) {
             Ok(Some(v)) => {
                 //TODO
                 v.to_string()
@@ -113,7 +113,7 @@ impl<'a> DWSyntax<'a> {
     /// 兼容`DataWindow::Describe`参数
     #[cfg(feature = "describe")]
     pub fn describe_value<'b>(&'b self, selector: &str) -> Result<Option<&'b Value<'a>>, String> {
-        parser::describe(self, selector).map_err(|e| parser::friendly_error(selector, e))
+        parser::query::describe(self, selector).map_err(|e| parser::friendly_error(selector, e))
     }
 }
 
@@ -160,6 +160,7 @@ impl<'a> Display for DWSyntax<'a> {
 pub struct Item<'a> {
     pub kind: KeyType<'a>,
     pub name: Option<KeyType<'a>>,
+    pub id: Option<u32>,
     pub values: HashMap<KeyType<'a>, Value<'a>>
 }
 

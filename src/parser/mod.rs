@@ -4,11 +4,8 @@ use nom::{
 };
 
 mod value;
-
 #[cfg(feature = "describe")]
-mod describe;
-#[cfg(feature = "describe")]
-pub use describe::describe;
+pub mod query;
 
 pub type Error<'a> = NomErr<VerboseError<&'a str>>;
 pub type Result<'a, T> = ::std::result::Result<T, Error<'a>>;
@@ -145,11 +142,13 @@ fn item(input: &str) -> ParseResult<SumItem> {
     fn normal<'a>(kind: KeyType<'a>, input: &'a str) -> ParseResult<'a, SumItem<'a>> {
         let (input, values) = value_map(input)?;
         let name = values.get(&"name".into_key()).and_then(|v| v.as_literal()).map(|v| v.clone().into_key());
+        let id = values.get(&"id".into_key()).and_then(|v| v.as_number()).map(|v| v as u32);
         Ok((
             input,
             SumItem::Item(Item {
                 kind,
                 name,
+                id,
                 values
             })
         ))
@@ -348,6 +347,7 @@ mod tests {
             SumItem::Item(Item {
                 kind: "group".into_key(),
                 name: None,
+                id: None,
                 values: HashMap::from([
                     ("key".into_key(), Value::Literal("value".into())),
                     ("key2".into_key(), Value::Number(132.)),
@@ -496,6 +496,7 @@ mod tests {
                 Item {
                     kind: "group".into_key(),
                     name: None,
+                    id: None,
                     values: HashMap::from([
                         ("level".into_key(), Value::Number(1.)),
                         ("trailer.height".into_key(), Value::Number(76.)),
@@ -511,6 +512,7 @@ mod tests {
                 Item {
                     kind: "compute".into_key(),
                     name: Some("compute_1".into_key()),
+                    id: None,
                     values: HashMap::from([
                         ("band".into_key(), Value::Literal("trailer.5".into())),
                         ("alignment".into_key(), Value::DoubleQuotedString("2".into())),
