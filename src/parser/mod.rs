@@ -4,7 +4,7 @@ use nom::{
 };
 
 mod value;
-#[cfg(feature = "describe")]
+#[cfg(feature = "query")]
 pub mod query;
 
 pub type Error<'a> = NomErr<VerboseError<&'a str>>;

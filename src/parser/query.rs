@@ -16,9 +16,20 @@ pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result
 /// 兼容`DataWindow::Modify`参数
 pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Result<'c, ()> {
     enum ModifyKind<'a> {
+        Assign(&'a str, Value<'a>),
         Create(SumItem<'a>),
-        Destroy(KeyType<'a>),
-        Assign(&'a str, Value<'a>)
+        Destroy(KeyType<'a>)
+    }
+    fn assign(input: &str) -> ParseResult<ModifyKind> {
+        fn key(input: &str) -> ParseResult<&str> {
+            take_while1(|c: char| c.is_alphanumeric() || c == '#' || c == '.' || c == '_')(input)
+        }
+        fn value(input: &str) -> ParseResult<Value> {
+            cut(alt((value::string, value::literal, value::number, value::map, value::list, fail)))(input)
+        }
+        separated_pair(key, delimited(multispace0, tag("="), multispace0), value)
+            .map(|(key, val)| ModifyKind::Assign(key, val))
+            .parse(input)
     }
     fn create(input: &str) -> ParseResult<ModifyKind> {
         #[cfg(feature = "case_insensitive")]
@@ -36,49 +47,44 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
         let (input, _) = multispace1(input)?;
         name.map(|v| ModifyKind::Destroy(v.into_key())).parse(input)
     }
-    fn asign(input: &str) -> ParseResult<ModifyKind> {
-        fn key(input: &str) -> ParseResult<&str> {
-            take_while1(|c: char| c.is_alphanumeric() || c == '#' || c == '.' || c == '_')(input)
-        }
-        fn value(input: &str) -> ParseResult<Value> {
-            cut(alt((value::string, value::literal, value::number, value::map, value::list, fail)))(input)
-        }
-        separated_pair(key, delimited(multispace0, tag("="), multispace0), value)
-            .map(|(key, val)| ModifyKind::Assign(key, val))
-            .parse(input)
-    }
     let (_, modifies) = terminated(
-        preceded(multispace0, separated_list1(alt((tag(";"), multispace0)), alt((create, asign)))),
-        terminated(multispace0, eof)
+        preceded(
+            multispace0,
+            separated_list1(
+                alt((delimited(multispace0, tag(";"), multispace0), multispace1)),
+                alt((assign, create, destroy, fail))
+            )
+        ),
+        terminated(delimited(multispace0, opt(tag(";")), multispace0), eof)
     )(input)?;
     for kind in modifies {
         match kind {
-            ModifyKind::Create(item) => todo!(),
-            ModifyKind::Destroy(name) => todo!(),
             ModifyKind::Assign(selector, value) => {
                 match select(syn, selector)? {
                     SelectResult::Value(v) => {
                         //SAFETY
                         //转换为mutable引用
-                        let v = unsafe {
+                        let v: &'a mut Value<'b> = unsafe {
                             let v = v as *const Value;
                             let v = v as *mut Value;
                             &mut *v
                         };
-                        *v = value;
+                        *v = value.to_static();
                     },
                     SelectResult::Map(map, key) => {
                         //SAFETY
                         //转换为mutable引用
-                        let map = unsafe {
+                        let map: &'a mut HashMap<KeyType<'b>, Value<'b>> = unsafe {
                             let map = map as *const HashMap<KeyType, Value>;
                             let map = map as *mut HashMap<KeyType, Value>;
                             &mut *map
                         };
-                        map.insert(key, value);
+                        map.insert(Cow::clone(&key).into_owned().into_key(), value.to_static());
                     }
                 }
-            }
+            },
+            ModifyKind::Create(item) => todo!(),
+            ModifyKind::Destroy(name) => todo!()
         }
     }
     Ok(())
@@ -115,7 +121,7 @@ fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, S
             let name = selector.next().unwrap();
             if name == "header" {
                 let mut values = &syn.header;
-                //header.<group #>.prop
+                //datawindow.header.<group #>.prop
                 if selector.len() >= 2 {
                     let name = selector.next().unwrap();
                     if let Ok(level) = name.parse() {
@@ -134,7 +140,7 @@ fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, S
                 values
             } else if name == "footer" {
                 let mut values = &syn.footer;
-                //footer.<group #>.prop
+                //datawindow.footer.<group #>.prop
                 if selector.len() >= 2 {
                     let name = selector.next().unwrap();
                     if let Ok(level) = name.parse() {
@@ -153,7 +159,7 @@ fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, S
                 values
             } else if name == "trailer" {
                 let mut values = None;
-                //trailer.<group #>.prop
+                //datawindow.trailer.<group #>.prop
                 if selector.len() >= 2 {
                     if let Ok(level) = selector.next().unwrap().parse() {
                         if let Some(item) = find_group(&syn.items, level) {
@@ -174,7 +180,7 @@ fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, S
                 }
             } else if name == "group" {
                 let mut values = None;
-                //group.<group #>.prop
+                //datawindow.group.<group #>.prop
                 if selector.len() >= 2 {
                     if let Ok(level) = selector.next().unwrap().parse() {
                         if let Some(item) = find_group(&syn.items, level) {
@@ -198,8 +204,8 @@ fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, S
                 &syn.detail
             } else if name == "table" {
                 let mut values = &syn.table.values;
-                //- column.<column #>.prop
-                //- column.<column name>.prop
+                //- datawindow.table.column.<column #>.prop
+                //- datawindow.table.column.<column name>.prop
                 if selector.len() >= 3 {
                     let name = selector.next().unwrap();
                     if name == "column" {
@@ -214,10 +220,8 @@ fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, S
                                     ErrorKind::Fail
                                 )));
                             }
-                        } else {
-                            if let Some(item) = find_table_column(&syn.table.columns, name.as_ref()) {
-                                values = &item.values;
-                            }
+                        } else if let Some(item) = find_table_column(&syn.table.columns, name.as_ref()) {
+                            values = &item.values;
                         }
                     }
                 }
@@ -483,10 +487,8 @@ mod tests {
 
         #[cfg(feature = "case_insensitive")]
         let modifier = r"
-        DataWindow.Num=12345
-        DataWindow.Trailer.1.Height=200
-        DataWindow.Header.2.Height=200
-        Col1.DBName='test'
+        DataWindow.Num=12345;DataWindow.Trailer.1.Height=200
+        DataWindow.Header.2.Height=200 Col1.DBName='test';
         DataWindow.Group.1.Prop='test prop'
         ";
         #[cfg(not(feature = "case_insensitive"))]

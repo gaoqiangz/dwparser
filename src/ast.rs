@@ -96,7 +96,7 @@ impl<'a> DWSyntax<'a> {
     /// 获取指定语法项的参数值
     ///
     /// 兼容`DataWindow::Describe`参数和返回值
-    #[cfg(feature = "describe")]
+    #[cfg(feature = "query")]
     pub fn describe(&self, selector: &str) -> String {
         match parser::query::describe(self, selector) {
             Ok(Some(v)) => {
@@ -111,9 +111,20 @@ impl<'a> DWSyntax<'a> {
     /// 获取指定语法项的参数值
     ///
     /// 兼容`DataWindow::Describe`参数
-    #[cfg(feature = "describe")]
+    #[cfg(feature = "query")]
     pub fn describe_value<'b>(&'b self, selector: &str) -> Result<Option<&'b Value<'a>>, String> {
         parser::query::describe(self, selector).map_err(|e| parser::friendly_error(selector, e))
+    }
+
+    /// 修改语法项的参数值
+    ///
+    /// 兼容`DataWindow::Modify`参数和返回值
+    #[cfg(feature = "query")]
+    pub fn modify(&mut self, modifier: &str) -> String {
+        match parser::query::modify(self, modifier) {
+            Ok(_) => "".to_owned(),
+            Err(e) => e.to_string()
+        }
     }
 }
 
@@ -301,6 +312,22 @@ impl<'a> Value<'a> {
         match self {
             Value::List(v) => Some(v),
             _ => None
+        }
+    }
+
+    /// 转换为静态生命期
+    pub fn to_static(&self) -> Value<'static> {
+        match self {
+            Value::Literal(v) => Value::Literal(v.clone().into_owned().into()),
+            Value::DoubleQuotedString(v) => Value::DoubleQuotedString(v.clone().into_owned().into()),
+            Value::SingleQuotedString(v) => Value::SingleQuotedString(v.clone().into_owned().into()),
+            Value::Number(v) => Value::Number(*v),
+            Value::Map(v) => {
+                Value::Map(
+                    v.iter().map(|(k, v)| (Cow::clone(k).into_owned().into_key(), v.to_static())).collect()
+                )
+            },
+            Value::List(v) => Value::List(v.iter().map(|v| v.to_static()).collect())
         }
     }
 }

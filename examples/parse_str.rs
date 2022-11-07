@@ -15,10 +15,10 @@ fn main() {
         line(band=foreground x1="0")
         compute(name=compute_1 band=trailer.5 alignment="2" expression="count(jw_no for group 5 )+~"件~""border="0"  )
         "#;
-    let dw = DWSyntax::parse(dwsyn).unwrap();
+    let mut dw = DWSyntax::parse(dwsyn).unwrap();
     println!("\r\nAST:\r\n{:#?}", dw);
 
-    #[cfg(feature = "describe")]
+    #[cfg(feature = "query")]
     {
         println!("\r\nDescribe:\r\n");
         println!("datawindow.color: {}", dw.describe("datawindow.color"));
@@ -29,6 +29,12 @@ fn main() {
         println!("datawindow.table.column.1.type: {}", dw.describe("datawindow.table.column.1.type"));
         println!("datawindow.table.column.col2.type: {}", dw.describe("datawindow.table.column.col2.type"));
         println!("compute_1.expression: {}", dw.describe("compute_1.expression"));
+
+        //modify
+        dw.modify("datawindow.color='red'");
+        dw.modify("compute_1.expression='getrow()'");
+        dw.modify("datawindow.header.1.height=200");
+        dw.modify("datawindow.table.column.col1.type=long");
     }
 
     println!("\r\nToString:\r\n{}", dw);
