@@ -11,11 +11,25 @@ fn main() {
         FROM test "
             arguments = ( ("a", string ), ( "b", string)  )
             sort= "row_num A "
-        )group(level=1   header.height=0  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))
+        )group(level=1   header.height=100  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))
         line(band=foreground x1="0")
-        compute(band=trailer.5 alignment="2" expression="count(jw_no for group 5 )+~"件~""border="0"  )
+        compute(name=compute_1 band=trailer.5 alignment="2" expression="count(jw_no for group 5 )+~"件~""border="0"  )
         "#;
     let dw = DWSyntax::parse(dwsyn).unwrap();
-    println!("\r\nAST:\r\n{:#?})", dw);
-    println!("\r\nToString:\r\n{})", dw);
+    println!("\r\nAST:\r\n{:#?}", dw);
+
+    #[cfg(feature = "describe")]
+    {
+        println!("\r\nDescribe:\r\n");
+        println!("datawindow.color: {}", dw.describe("datawindow.color"));
+        println!("datawindow.header.color: {}", dw.describe("datawindow.header.color"));
+        println!("datawindow.header.1.height: {}", dw.describe("datawindow.header.1.height"));
+        println!("datawindow.group.1.by: {}", dw.describe("datawindow.group.1.by"));
+        println!("datawindow.table.arguments: {}", dw.describe("datawindow.table.arguments"));
+        println!("datawindow.table.column.1.type: {}", dw.describe("datawindow.table.column.1.type"));
+        println!("datawindow.table.column.col2.type: {}", dw.describe("datawindow.table.column.col2.type"));
+        println!("compute_1.expression: {}", dw.describe("compute_1.expression"));
+    }
+
+    println!("\r\nToString:\r\n{}", dw);
 }

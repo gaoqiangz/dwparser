@@ -35,7 +35,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// datawindow(key=value key=value)
     /// ```
-    pub datawindow: HashMap<Cow<'a, str>, Value<'a>>,
+    pub datawindow: HashMap<KeyType<'a>, Value<'a>>,
     /// `header`语法项
     ///
     /// # Syntax
@@ -43,7 +43,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// header(key=value key=value)
     /// ```
-    pub header: HashMap<Cow<'a, str>, Value<'a>>,
+    pub header: HashMap<KeyType<'a>, Value<'a>>,
     /// `summary`语法项
     ///
     /// # Syntax
@@ -51,7 +51,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// summary(key=value key=value)
     /// ```
-    pub summary: HashMap<Cow<'a, str>, Value<'a>>,
+    pub summary: HashMap<KeyType<'a>, Value<'a>>,
     /// `footer`语法项
     ///
     /// # Syntax
@@ -59,7 +59,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// footer(key=value key=value)
     /// ```
-    pub footer: HashMap<Cow<'a, str>, Value<'a>>,
+    pub footer: HashMap<KeyType<'a>, Value<'a>>,
     /// `detail`语法项
     ///
     /// # Syntax
@@ -67,7 +67,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// detail(key=value key=value)
     /// ```
-    pub detail: HashMap<Cow<'a, str>, Value<'a>>,
+    pub detail: HashMap<KeyType<'a>, Value<'a>>,
     /// `table`语法项
     ///
     /// # Syntax
@@ -99,6 +99,29 @@ impl<'a> DWSyntax<'a> {
     /// 解析语法
     pub fn parse(input: &'a str) -> Result<Self, String> {
         parser::parse(input).map_err(|e| parser::friendly_error(input, e))
+    }
+
+    /// 获取指定语法项的参数值
+    ///
+    /// 兼容`DataWindow::Describe`参数和返回值
+    #[cfg(feature = "describe")]
+    pub fn describe(&self, selector: &str) -> String {
+        match parser::query::describe(self, selector) {
+            Ok(Some(v)) => {
+                //TODO
+                v.to_string()
+            },
+            Ok(None) => "?".to_owned(),
+            Err(_) => "!".to_owned()
+        }
+    }
+
+    /// 获取指定语法项的参数值
+    ///
+    /// 兼容`DataWindow::Describe`参数
+    #[cfg(feature = "describe")]
+    pub fn describe_value<'b>(&'b self, selector: &str) -> Result<Option<&'b Value<'a>>, String> {
+        parser::query::describe(self, selector).map_err(|e| parser::friendly_error(selector, e))
     }
 }
 
@@ -146,9 +169,10 @@ impl<'a> Display for DWSyntax<'a> {
 /// ```
 #[derive(Debug, PartialEq)]
 pub struct Item<'a> {
-    pub kind: Cow<'a, str>,
-    pub name: Option<Cow<'a, str>>,
-    pub values: HashMap<Cow<'a, str>, Value<'a>>
+    pub kind: KeyType<'a>,
+    pub name: Option<KeyType<'a>>,
+    pub id: Option<u32>,
+    pub values: HashMap<KeyType<'a>, Value<'a>>
 }
 
 impl<'a> Display for Item<'a> {
@@ -166,7 +190,7 @@ impl<'a> Display for Item<'a> {
 #[derive(Debug, PartialEq, Default)]
 pub struct ItemTable<'a> {
     pub columns: Vec<ItemTableColumn<'a>>,
-    pub values: HashMap<Cow<'a, str>, Value<'a>>
+    pub values: HashMap<KeyType<'a>, Value<'a>>
 }
 
 impl<'a> ItemTable<'a> {
@@ -192,8 +216,8 @@ impl<'a> Display for ItemTable<'a> {
 /// ```
 #[derive(Debug, PartialEq)]
 pub struct ItemTableColumn<'a> {
-    pub name: Option<Cow<'a, str>>,
-    pub values: HashMap<Cow<'a, str>, Value<'a>>
+    pub name: Option<KeyType<'a>>,
+    pub values: HashMap<KeyType<'a>, Value<'a>>
 }
 
 impl<'a> Display for ItemTableColumn<'a> {
@@ -225,7 +249,7 @@ pub enum Value<'a> {
     /// Key-Value值列表
     ///
     /// `(key=value key=value)`
-    Map(HashMap<Cow<'a, str>, Value<'a>>),
+    Map(HashMap<KeyType<'a>, Value<'a>>),
     /// 多值列表
     ///
     /// - `("abcd", "abcd")`
@@ -276,7 +300,7 @@ impl<'a> Value<'a> {
     }
 
     /// 获取Key-Value值列表
-    pub fn as_map(&self) -> Option<&HashMap<Cow<'a, str>, Value<'a>>> {
+    pub fn as_map(&self) -> Option<&HashMap<KeyType<'a>, Value<'a>>> {
         match self {
             Value::Map(v) => Some(v),
             _ => None
@@ -305,7 +329,7 @@ impl<'a> Display for Value<'a> {
     }
 }
 
-struct MapDisplay<'a>(&'a HashMap<Cow<'a, str>, Value<'a>>);
+struct MapDisplay<'a>(&'a HashMap<KeyType<'a>, Value<'a>>);
 
 impl<'a> Display for MapDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

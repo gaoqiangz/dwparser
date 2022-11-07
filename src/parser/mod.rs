@@ -3,6 +3,10 @@ use nom::{
     branch::*, bytes::complete::*, character::complete::*, combinator::*, error::{context, convert_error, make_error, ErrorKind, VerboseError}, multi::*, number::complete::*, sequence::*, Err as NomErr, IResult, Parser
 };
 
+mod value;
+#[cfg(feature = "describe")]
+pub mod query;
+
 pub type Error<'a> = NomErr<VerboseError<&'a str>>;
 pub type Result<'a, T> = ::std::result::Result<T, Error<'a>>;
 type ParseResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
@@ -54,10 +58,7 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
             (datawindow, header, summary, footer, detail, table, data, items)
         }
     )(input)?;
-    let (input, _) = multispace0(input)?;
-    if !input.is_empty() {
-        return Err(NomErr::Failure(make_error(input, ErrorKind::Fail)));
-    }
+    terminated(multispace0, eof)(input)?;
 
     Ok(DWSyntax {
         name,
@@ -144,14 +145,16 @@ fn item(input: &str) -> ParseResult<SumItem> {
     /// (key=value key2=value)
     /// ```
     #[inline]
-    fn normal<'a>(kind: Cow<'a, str>, input: &'a str) -> ParseResult<'a, SumItem<'a>> {
+    fn normal<'a>(kind: KeyType<'a>, input: &'a str) -> ParseResult<'a, SumItem<'a>> {
         let (input, values) = value_map(input)?;
-        let name = values.get("name").and_then(|v| v.as_literal()).map(|v| v.clone());
+        let name = values.get(&"name".into_key()).and_then(|v| v.as_literal()).map(|v| v.clone().into_key());
+        let id = values.get(&"id".into_key()).and_then(|v| v.as_number()).map(|v| v as u32);
         Ok((
             input,
             SumItem::Item(Item {
                 kind,
                 name,
+                id,
                 values
             })
         ))
@@ -177,7 +180,10 @@ fn item(input: &str) -> ParseResult<SumItem> {
                 Ok((remaining, (key, value))) => {
                     if key == "column" {
                         if let Value::Map(values) = value {
-                            let name = values.get("name").and_then(|v| v.as_literal()).map(|v| v.clone());
+                            let name = values
+                                .get(&"name".into_key())
+                                .and_then(|v| v.as_literal())
+                                .map(|v| v.clone().into_key());
                             columns.push(ItemTableColumn {
                                 name,
                                 values
@@ -235,7 +241,7 @@ fn item(input: &str) -> ParseResult<SumItem> {
     fn parse(input: &str) -> ParseResult<SumItem> {
         let (input, kind) = delimited(
             multispace0,
-            take_while1(|c: char| c.is_alphabetic() || c == '.').map(Cow::from),
+            take_while1(|c: char| c.is_alphabetic() || c == '.').map(IntoKey::into_key),
             multispace0
         )(input)?;
         if kind == "table" {
@@ -262,7 +268,7 @@ fn item(input: &str) -> ParseResult<SumItem> {
 /// ```txt
 /// map<key,value>
 /// ```
-fn value_map(input: &str) -> ParseResult<HashMap<Cow<str>, Value>> {
+fn value_map(input: &str) -> ParseResult<HashMap<KeyType, Value>> {
     let (mut input, _) = tag("(")(input)?;
     let mut values = HashMap::with_capacity(32);
     //手写循环替代`separated_list0`,以支持松散格式
@@ -297,13 +303,14 @@ fn value_map(input: &str) -> ParseResult<HashMap<Cow<str>, Value>> {
 /// ```txt
 /// (key,value)
 /// ```
-fn key_value(input: &str) -> ParseResult<(Cow<str>, Value)> {
-    fn key(input: &str) -> ParseResult<Cow<str>> {
+fn key_value(input: &str) -> ParseResult<(KeyType, Value)> {
+    fn key(input: &str) -> ParseResult<KeyType> {
         //必须是字母开头
         satisfy(|c| c.is_alphabetic())(input)?;
-        context("key", take_while1(|c: char| c.is_alphanumeric() || c == '.' || c == '_').map(Cow::from))(
-            input
-        )
+        context(
+            "key",
+            take_while1(|c: char| c.is_alphanumeric() || c == '.' || c == '_').map(IntoKey::into_key)
+        )(input)
     }
     fn value(input: &str) -> ParseResult<Value> {
         context(
@@ -314,91 +321,19 @@ fn key_value(input: &str) -> ParseResult<(Cow<str>, Value)> {
     separated_pair(key, delimited(multispace0, tag("="), multispace0), value)(input)
 }
 
-mod value {
-    use super::*;
-
-    /// 字面值解析
-    pub fn literal(input: &str) -> ParseResult<Value> {
-        /// 普通字面值
-        fn normal(input: &str) -> ParseResult<&str> {
-            take_while1(|c: char| c.is_alphanumeric() || c == '.' || c == '_')(input)
-        }
-        /// 带括号的字面值
-        fn with_paren(orig_input: &str) -> ParseResult<&str> {
-            use nom::{Offset, Slice};
-            let (input, _) = terminated(alpha1, multispace0)(orig_input)?;
-            let (input, _) =
-                delimited(tag("("), delimited(multispace0, normal, multispace0), tag(")"))(input)?;
-            //输出原始文本
-            let offset = orig_input.offset(&input);
-            Ok((input, orig_input.slice(..offset)))
-        }
-        //必须是字母开头
-        satisfy(|c| c.is_alphabetic())(input)?;
-        let parser = alt((with_paren, normal)).map(|v| Value::Literal(v.into()));
-        context("literal", parser)(input)
-    }
-
-    /// 字符串解析
-    pub fn string(input: &str) -> ParseResult<Value> {
-        /// 不同引号字符串(`""`/`''`)转义处理
-        fn quoted(qot: char) -> impl Fn(&str) -> ParseResult<&str> {
-            move |input: &str| {
-                delimited(
-                    char(qot),
-                    escaped(
-                        take_till1(|c: char| c == '~' || c == qot),
-                        '~',
-                        anychar //PB字符串转义不限制字符
-                    ),
-                    char(qot)
-                )(input)
-            }
-        }
-        //NOTE
-        //`escaped`要求`normal`参数失败才会匹配`control_char`,所以必须使用`take_till1`组合子
-        //因此需要单独匹配空字符串: `""`/`''`
-        let double_quoted =
-            alt((quoted('"'), tag("\"\"").map(|_| ""))).map(|v| Value::DoubleQuotedString(v.into()));
-        let single_quoted =
-            alt((quoted('\''), tag("''").map(|_| ""))).map(|v| Value::SingleQuotedString(v.into()));
-        let parser = alt((double_quoted, single_quoted));
-        context("string", parser)(input)
-    }
-
-    /// 数值解析
-    pub fn number(input: &str) -> ParseResult<Value> { context("number", double.map(Value::Number))(input) }
-
-    /// 多值列表解析
-    pub fn list(input: &str) -> ParseResult<Value> {
-        let parser = delimited(
-            tag("("),
-            separated_list0(
-                tag(","),
-                delimited(multispace0, cut(alt((string, literal, list, fail))), multispace0)
-            )
-            .map(Value::List),
-            tag(")")
-        );
-        context("list", parser)(input)
-    }
-
-    /// Key-Value值列表解析
-    pub fn map(input: &str) -> ParseResult<Value> {
-        let parser = value_map.map(Value::Map);
-        context("map", parser)(input)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn test_parser<'a, F, O>(input: &'a str, f: F) -> O
+    pub fn test_parser<'a, F, O>(input: &'a str, f: F) -> O
     where
         F: Fn(&'a str) -> Result<'a, O>
     {
-        match f(input) {
+        check_result(input, f(input))
+    }
+
+    pub fn check_result<'a, O>(input: &'a str, rv: Result<'a, O>) -> O {
+        match rv {
             Ok(v) => v,
             Err(e) => panic!("{}", friendly_error(input, e))
         }
@@ -446,12 +381,13 @@ mod tests {
         assert_eq!(
             output,
             SumItem::Item(Item {
-                kind: "group".into(),
+                kind: "group".into_key(),
                 name: None,
+                id: None,
                 values: HashMap::from([
-                    ("key".into(), Value::Literal("value".into())),
-                    ("key2".into(), Value::Number(132.)),
-                    ("key3".into(), Value::SingleQuotedString("abc~'123\"".into())),
+                    ("key".into_key(), Value::Literal("value".into())),
+                    ("key2".into_key(), Value::Number(132.)),
+                    ("key3".into_key(), Value::SingleQuotedString("abc~'123\"".into())),
                 ])
             })
         );
@@ -465,22 +401,22 @@ mod tests {
             SumItem::ItemTable(ItemTable {
                 columns: vec![
                     ItemTableColumn {
-                        name: Some("col1".into()),
+                        name: Some("col1".into_key()),
                         values: HashMap::from([
-                            ("type".into(), Value::Literal("char(10)".into())),
-                            ("name".into(), Value::Literal("col1".into())),
+                            ("type".into_key(), Value::Literal("char(10)".into())),
+                            ("name".into_key(), Value::Literal("col1".into())),
                         ])
                     },
                     ItemTableColumn {
-                        name: Some("col2".into()),
+                        name: Some("col2".into_key()),
                         values: HashMap::from([
-                            ("type".into(), Value::Literal("char(20)".into())),
-                            ("name".into(), Value::Literal("col2".into())),
+                            ("type".into_key(), Value::Literal("char(20)".into())),
+                            ("name".into_key(), Value::Literal("col2".into())),
                         ])
                     }
                 ],
                 values: HashMap::from([(
-                    "arguments".into(),
+                    "arguments".into_key(),
                     Value::List(vec![
                         Value::List(vec![
                             Value::DoubleQuotedString("a".into()),
@@ -523,10 +459,10 @@ mod tests {
         assert_eq!(
             output,
             HashMap::from([
-                ("key1".into(), Value::Number(123.45)),
-                ("key2".into(), Value::Literal("value".into())),
-                ("key3".into(), Value::SingleQuotedString("abc".into())),
-                ("key4".into(), Value::DoubleQuotedString("abc".into())),
+                ("key1".into_key(), Value::Number(123.45)),
+                ("key2".into_key(), Value::Literal("value".into())),
+                ("key3".into_key(), Value::SingleQuotedString("abc".into())),
+                ("key4".into_key(), Value::DoubleQuotedString("abc".into())),
             ])
         );
         assert!(value_map("(123=bac)").is_err());
@@ -537,16 +473,16 @@ mod tests {
     fn test_key_value() {
         let (input, output) = test_parser("key=123.45", key_value);
         assert_eq!(input, "");
-        assert_eq!(output, ("key".into(), Value::Number(123.45)));
+        assert_eq!(output, ("key".into_key(), Value::Number(123.45)));
         let (input, output) = test_parser("key=value", key_value);
         assert_eq!(input, "");
-        assert_eq!(output, ("key".into(), Value::Literal("value".into())));
+        assert_eq!(output, ("key".into_key(), Value::Literal("value".into())));
         let (input, output) = test_parser("key='abc~'def~'\nghi'", key_value);
         assert_eq!(input, "");
-        assert_eq!(output, ("key".into(), Value::SingleQuotedString("abc~'def~'\nghi".into())));
+        assert_eq!(output, ("key".into_key(), Value::SingleQuotedString("abc~'def~'\nghi".into())));
         let (input, output) = test_parser("key=\"abc'\ndef~\"ghi~\"\"", key_value);
         assert_eq!(input, "");
-        assert_eq!(output, ("key".into(), Value::DoubleQuotedString("abc'\ndef~\"ghi~\"".into())));
+        assert_eq!(output, ("key".into_key(), Value::DoubleQuotedString("abc'\ndef~\"ghi~\"".into())));
         assert!(key_value("123=bac").is_err());
         assert!(key_value("2key2=345").is_err());
         assert!(key_value("123:sadf23").is_err());
@@ -561,7 +497,7 @@ mod tests {
         retrieve="SQL
         CLAUSE "
             arguments = ( ("a", string ), ( "b", string)  )
-        )group(trailer.height=76 by= (  "col1",   'col2' ))
+        )group(level=1 trailer.height=76 by= (  "col1",   'col2' ))
         compute(band=trailer.5 alignment="2"name=compute_1 expression="count(jw_no for group 5 )+~"件~""x1="0"  )
         "#;
         let dw = test_parser(dwsyn, parse);
@@ -570,33 +506,33 @@ mod tests {
             comment: None,
             version: 12.5,
             datawindow: HashMap::from([
-                ("empty_dqt".into(), Value::DoubleQuotedString("".into())),
-                ("empty_sqt".into(), Value::SingleQuotedString("".into())),
-                ("num".into(), Value::Number(1073741824.)),
-                ("lit".into(), Value::Literal("yes".into()))
+                ("empty_dqt".into_key(), Value::DoubleQuotedString("".into())),
+                ("empty_sqt".into_key(), Value::SingleQuotedString("".into())),
+                ("num".into_key(), Value::Number(1073741824.)),
+                ("lit".into_key(), Value::Literal("yes".into()))
             ]),
             header: HashMap::from([
-                ("num".into(), Value::Number(564.)),
-                ("dqt".into(), Value::DoubleQuotedString("536870912".into())),
-                ("sqt".into(), Value::SingleQuotedString("100".into()))
+                ("num".into_key(), Value::Number(564.)),
+                ("dqt".into_key(), Value::DoubleQuotedString("536870912".into())),
+                ("sqt".into_key(), Value::SingleQuotedString("100".into()))
             ]),
             summary: Default::default(),
             footer: Default::default(),
             detail: Default::default(),
             table: ItemTable {
                 columns: vec![ItemTableColumn {
-                    name: Some("col1".into()),
+                    name: Some("col1".into_key()),
                     values: HashMap::from([
-                        ("type".into(), Value::Literal("char(80  )".into())),
-                        ("updatewhereclause".into(), Value::Literal("yes".into())),
-                        ("name".into(), Value::Literal("col1".into())),
-                        ("dbname".into(), Value::DoubleQuotedString("col1".into())),
+                        ("type".into_key(), Value::Literal("char(80  )".into())),
+                        ("updatewhereclause".into_key(), Value::Literal("yes".into())),
+                        ("name".into_key(), Value::Literal("col1".into())),
+                        ("dbname".into_key(), Value::DoubleQuotedString("col1".into())),
                     ])
                 }],
                 values: HashMap::from([
-                    ("retrieve".into(), Value::DoubleQuotedString("SQL\n        CLAUSE ".into())),
+                    ("retrieve".into_key(), Value::DoubleQuotedString("SQL\n        CLAUSE ".into())),
                     (
-                        "arguments".into(),
+                        "arguments".into_key(),
                         Value::List(vec![
                             Value::List(vec![
                                 Value::DoubleQuotedString("a".into()),
@@ -613,12 +549,14 @@ mod tests {
             data: Default::default(),
             items: vec![
                 Item {
-                    kind: "group".into(),
+                    kind: "group".into_key(),
                     name: None,
+                    id: None,
                     values: HashMap::from([
-                        ("trailer.height".into(), Value::Number(76.)),
+                        ("level".into_key(), Value::Number(1.)),
+                        ("trailer.height".into_key(), Value::Number(76.)),
                         (
-                            "by".into(),
+                            "by".into_key(),
                             Value::List(vec![
                                 Value::DoubleQuotedString("col1".into()),
                                 Value::SingleQuotedString("col2".into()),
@@ -627,24 +565,25 @@ mod tests {
                     ])
                 },
                 Item {
-                    kind: "compute".into(),
-                    name: Some("compute_1".into()),
+                    kind: "compute".into_key(),
+                    name: Some("compute_1".into_key()),
+                    id: None,
                     values: HashMap::from([
-                        ("band".into(), Value::Literal("trailer.5".into())),
-                        ("alignment".into(), Value::DoubleQuotedString("2".into())),
-                        ("name".into(), Value::Literal("compute_1".into())),
+                        ("band".into_key(), Value::Literal("trailer.5".into())),
+                        ("alignment".into_key(), Value::DoubleQuotedString("2".into())),
+                        ("name".into_key(), Value::Literal("compute_1".into())),
                         (
-                            "expression".into(),
+                            "expression".into_key(),
                             Value::DoubleQuotedString(r#"count(jw_no for group 5 )+~"件~""#.into())
                         ),
-                        ("x1".into(), Value::DoubleQuotedString("0".into()))
+                        ("x1".into_key(), Value::DoubleQuotedString("0".into()))
                     ])
                 }
             ]
         });
         assert_eq!(
             dw.to_string(),
-            "release 12.5;\r\ndatawindow(empty_dqt=\"\" empty_sqt='' num=1073741824 lit=yes)\r\nheader(num=564 dqt=\"536870912\" sqt='100')\r\ntable(column=(type=char(80  ) updatewhereclause=yes name=col1 dbname=\"col1\")\r\nretrieve=\"SQL\n        CLAUSE \" arguments=((\"a\", string), (\"b\", string)))\r\ngroup(trailer.height=76 by=(\"col1\", 'col2'))\r\ncompute(band=trailer.5 alignment=\"2\" name=compute_1 expression=\"count(jw_no for group 5 )+~\"件~\"\" x1=\"0\")\r\n"
+            "release 12.5;\r\ndatawindow(empty_dqt=\"\" empty_sqt='' num=1073741824 lit=yes)\r\nheader(num=564 dqt=\"536870912\" sqt='100')\r\ntable(column=(type=char(80  ) updatewhereclause=yes name=col1 dbname=\"col1\")\r\nretrieve=\"SQL\n        CLAUSE \" arguments=((\"a\", string), (\"b\", string)))\r\ngroup(level=1 trailer.height=76 by=(\"col1\", 'col2'))\r\ncompute(band=trailer.5 alignment=\"2\" name=compute_1 expression=\"count(jw_no for group 5 )+~\"件~\"\" x1=\"0\")\r\n"
         );
     }
 }
