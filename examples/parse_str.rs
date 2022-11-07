@@ -32,9 +32,10 @@ fn main() {
 
         //modify
         dw.modify("datawindow.color='red'");
-        dw.modify("compute_1.expression='getrow()'");
         dw.modify("datawindow.header.1.height=200");
         dw.modify("datawindow.table.column.col1.type=long");
+        dw.modify("datawindow.group.1.prop='test prop'");
+        dw.modify("compute_1.expression='getrow()'");
     }
 
     println!("\r\nToString:\r\n{}", dw);
