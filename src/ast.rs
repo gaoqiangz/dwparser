@@ -315,8 +315,8 @@ impl<'a> Value<'a> {
         }
     }
 
-    /// 转换为静态生命期
-    pub fn to_static(&self) -> Value<'static> {
+    /// 拷贝值并协变为目标生命期
+    pub(crate) fn to_owned<'r>(&self) -> Value<'r> {
         match self {
             Value::Literal(v) => Value::Literal(v.clone().into_owned().into()),
             Value::DoubleQuotedString(v) => Value::DoubleQuotedString(v.clone().into_owned().into()),
@@ -324,10 +324,10 @@ impl<'a> Value<'a> {
             Value::Number(v) => Value::Number(*v),
             Value::Map(v) => {
                 Value::Map(
-                    v.iter().map(|(k, v)| (Cow::clone(k).into_owned().into_key(), v.to_static())).collect()
+                    v.iter().map(|(k, v)| (Cow::clone(k).into_owned().into_key(), v.to_owned())).collect()
                 )
             },
-            Value::List(v) => Value::List(v.iter().map(|v| v.to_static()).collect())
+            Value::List(v) => Value::List(v.iter().map(|v| v.to_owned()).collect())
         }
     }
 }

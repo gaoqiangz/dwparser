@@ -69,7 +69,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                             let v = v as *mut Value;
                             &mut *v
                         };
-                        *v = value.to_static();
+                        *v = value.to_owned();
                     },
                     SelectResult::Map(map, key) => {
                         //SAFETY
@@ -79,7 +79,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                             let map = map as *mut HashMap<KeyType, Value>;
                             &mut *map
                         };
-                        map.insert(Cow::clone(&key).into_owned().into_key(), value.to_static());
+                        map.insert(Cow::clone(&key).into_owned().into_key(), value.to_owned());
                     }
                 }
             },
