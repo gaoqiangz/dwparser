@@ -395,10 +395,16 @@ struct DataDisplay<'a>(&'a Vec<Value<'a>>);
 impl<'a> Display for DataDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for value in self.0 {
-            write!(f," ")?;
-            if let Value::List(item) = value{
-                for v in item{
-                    write!(f,"{},",v)?;
+            match value {
+                Value::Literal(_v) => {
+                    if _v == "null"{
+                        write!(f,"{} ",_v)?;
+                    }else{
+                        write!(f,"{},",_v)?;
+                    }
+                },
+                _=>{
+                    write!(f,"{}, ",value)?;
                 }
             }
         }

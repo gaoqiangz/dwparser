@@ -32,7 +32,7 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
                 Default::default(),
                 Default::default(),
                 Default::default(),
-                Vec::with_capacity(2048),
+                Default::default(),
                 Vec::with_capacity(2048)
             )
         },
@@ -219,25 +219,70 @@ fn item(input: &str) -> ParseResult<SumItem> {
     /// ```
     #[inline]
     fn data(input: &str) -> ParseResult<SumItem> {
+        fn null(input:&str)->ParseResult<&str>{
+            delimited(multispace0, tag("null"), multispace0)(input)
+        }  
+        fn spliteral(input:&str)->ParseResult<Value>{
+            let mut rt_vec:Vec<Value> = vec![];
+            let (mut input,_) = match null(input)
+            {
+                Ok((i,o)) =>{
+                    let (_,n) = value::literal(o)?;
+                    rt_vec.push(n);
+                    (i,o)
+                },
+                Err(_)=>{
+                    return Ok((input,Value::List(rt_vec)));
+                }
+            };
+            loop {
+                match null(input) {
+                    Ok((i,o))=>{
+                        input = i;
+                        let (_,o) = value::literal(o)?;
+                        rt_vec.push(o);
+
+                    },
+                    Err(_)=>{
+                        if input.len() > 0{
+                            let(i,o)= terminated(  terminated(alt((value::string,value::number,value::literal,fail)),multispace0) ,take_until(","))(input)?;
+                            rt_vec.push(o);
+                            input = i
+                        }else{
+                            input = input;
+                            return Ok((input,Value::List(rt_vec)));
+                        }
+                        break;
+                    }
+                }
+            }
+            Ok((input,Value::List(rt_vec)))
+        }    
         let mut parser = delimited(
             tag("("),
-            delimited(
-                multispace0,
-                separated_list0(
-                    preceded(tag(","), space1),
-                    separated_list0(
-                        tag(","),
-                        alt((value::string, value::literal, value::number, fail)),
-                    )
-                    .map(Value::List),
-                ),
-                tag(","),
-            ),
+            separated_list0(tag(","),delimited(multispace0, alt((value::string,value::number,spliteral,fail)),multispace0 ) )
+            .map(|v:Vec<Value>|{
+                let mut rv = vec![];
+                for item in v{
+                    match item {
+                        Value::List(_item)=>{
+                            for _v in _item{
+                                rv.push(_v);
+                            }
+                        },
+                        _=>{
+                            rv.push(item);
+                        }
+                    }
+                };
+                rv
+            }),
             tag(")"),
         );
         let (input, value) = parser(input)?;
         Ok((input, SumItem::ItemData(value)))
     }
+    
     fn parse(input: &str) -> ParseResult<SumItem> {
         let (input, kind) = delimited(
             multispace0,
@@ -436,19 +481,25 @@ mod tests {
 
     #[test]
     fn test_item_data(){
-        let dw = r#"data( 0,"自增ID","参数1", 1,"固定字符","参数2",)abc"#;
+        let dw = r#"data(null null 0  ,"自增(ID)","\r\n参数1",1,2,3,null "固定,字符","参数2",null 1,null  1 ,  )abc"#;
         let (input,output) = test_parser(dw, item);
         assert_eq!(input,"abc");
         assert_eq!(output,SumItem::ItemData(vec![
-                Value::List(vec![
+                    Value::Literal(Cow::from("null")),
+                    Value::Literal(Cow::from("null")),
                     Value::Number(0.0),
-                    Value::DoubleQuotedString(Cow::from("自增ID")),
-                    Value::DoubleQuotedString(Cow::from("参数1"))],),
-                Value::List(vec![
+                    Value::DoubleQuotedString(Cow::from("自增(ID)")),
+                    Value::DoubleQuotedString(Cow::from("\\r\\n参数1")),
                     Value::Number(1.0),
-                    Value::DoubleQuotedString(Cow::from("固定字符")),
-                    Value::DoubleQuotedString(Cow::from("参数2"))
-                ])
+                    Value::Number(2.0),
+                    Value::Number(3.0),
+                    Value::Literal(Cow::from("null")),
+                    Value::DoubleQuotedString(Cow::from("固定,字符")),
+                    Value::DoubleQuotedString(Cow::from("参数2")),
+                    Value::Literal(Cow::from("null")),
+                    Value::Number(1.0),
+                    Value::Literal(Cow::from("null")),
+                    Value::Number(1.0),
                 ]));
     }
 
