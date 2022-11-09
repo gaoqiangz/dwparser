@@ -14,14 +14,15 @@ type ParseResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
 #[derive(Debug, PartialEq)]
 enum SumItem<'a> {
     Item(Item<'a>),
-    ItemTable(ItemTable<'a>)
+    ItemTable(ItemTable<'a>),
+    ItemData(Vec<Value<'a>>)
 }
 
 /// 解析语法
 pub fn parse(input: &str) -> Result<DWSyntax> {
     let (input, (name, comment)) = srd_file_header(input)?;
     let (input, version) = version(input)?;
-    let (input, (datawindow, header, summary, footer, detail, table, items)) = fold_many1(
+    let (input, (datawindow, header, summary, footer, detail, table, data, items)) = fold_many1(
         item,
         || {
             (
@@ -31,10 +32,11 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
                 Default::default(),
                 Default::default(),
                 Default::default(),
+                Default::default(),
                 Vec::with_capacity(2048)
             )
         },
-        |(mut datawindow, mut header, mut summary, mut footer, mut detail, mut table, mut items), item| {
+        |(mut datawindow, mut header, mut summary, mut footer, mut detail, mut table,mut data, mut items), item| {
             match item {
                 SumItem::Item(item) => {
                     match item.kind.as_ref() {
@@ -48,9 +50,12 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
                 },
                 SumItem::ItemTable(item) => {
                     table = item;
+                },
+                SumItem::ItemData(item)=>{
+                    data = item;
                 }
             }
-            (datawindow, header, summary, footer, detail, table, items)
+            (datawindow, header, summary, footer, detail, table, data, items)
         }
     )(input)?;
     terminated(multispace0, eof)(input)?;
@@ -65,6 +70,7 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
         footer,
         detail,
         table,
+        data,
         items
     })
 }
@@ -204,6 +210,79 @@ fn item(input: &str) -> ParseResult<SumItem> {
             }
         }
     }
+    /// `data`语法项解析
+    ///
+    /// # Input
+    ///
+    /// ```txt
+    /// data(...)
+    /// ```
+    #[inline]
+    fn data(input: &str) -> ParseResult<SumItem> {
+        fn null(input:&str)->ParseResult<&str>{
+            delimited(multispace0, tag("null"), multispace0)(input)
+        }  
+        fn spliteral(input:&str)->ParseResult<Value>{
+            let mut rt_vec:Vec<Value> = vec![];
+            let (mut input,_) = match null(input)
+            {
+                Ok((i,o)) =>{
+                    let (_,n) = value::literal(o)?;
+                    rt_vec.push(n);
+                    (i,o)
+                },
+                Err(_)=>{
+                    return Ok((input,Value::List(rt_vec)));
+                }
+            };
+            loop {
+                match null(input) {
+                    Ok((i,o))=>{
+                        input = i;
+                        let (_,o) = value::literal(o)?;
+                        rt_vec.push(o);
+
+                    },
+                    Err(_)=>{
+                        if input.len() > 0{
+                            let(i,o)= terminated(  terminated(alt((value::string,value::number,value::literal,fail)),multispace0) ,take_until(","))(input)?;
+                            rt_vec.push(o);
+                            input = i
+                        }else{
+                            input = input;
+                            return Ok((input,Value::List(rt_vec)));
+                        }
+                        break;
+                    }
+                }
+            }
+            Ok((input,Value::List(rt_vec)))
+        }    
+        let mut parser = delimited(
+            tag("("),
+            separated_list0(tag(","),delimited(multispace0, alt((value::string,value::number,spliteral,fail)),multispace0 ) )
+            .map(|v:Vec<Value>|{
+                let mut rv = vec![];
+                for item in v{
+                    match item {
+                        Value::List(_item)=>{
+                            for _v in _item{
+                                rv.push(_v);
+                            }
+                        },
+                        _=>{
+                            rv.push(item);
+                        }
+                    }
+                };
+                rv
+            }),
+            tag(")"),
+        );
+        let (input, value) = parser(input)?;
+        Ok((input, SumItem::ItemData(value)))
+    }
+    
     fn parse(input: &str) -> ParseResult<SumItem> {
         let (input, kind) = delimited(
             multispace0,
@@ -212,7 +291,9 @@ fn item(input: &str) -> ParseResult<SumItem> {
         )(input)?;
         if kind == "table" {
             table(input)
-        } else {
+        } else if kind == "data"{
+            data(input)
+        } else{
             normal(kind, input)
         }
     }
@@ -399,6 +480,30 @@ mod tests {
     }
 
     #[test]
+    fn test_item_data(){
+        let dw = r#"data(null null 0  ,"自增(ID)","\r\n参数1",1,2,3,null "固定,字符","参数2",null 1,null  1 ,  )abc"#;
+        let (input,output) = test_parser(dw, item);
+        assert_eq!(input,"abc");
+        assert_eq!(output,SumItem::ItemData(vec![
+                    Value::Literal(Cow::from("null")),
+                    Value::Literal(Cow::from("null")),
+                    Value::Number(0.0),
+                    Value::DoubleQuotedString(Cow::from("自增(ID)")),
+                    Value::DoubleQuotedString(Cow::from("\\r\\n参数1")),
+                    Value::Number(1.0),
+                    Value::Number(2.0),
+                    Value::Number(3.0),
+                    Value::Literal(Cow::from("null")),
+                    Value::DoubleQuotedString(Cow::from("固定,字符")),
+                    Value::DoubleQuotedString(Cow::from("参数2")),
+                    Value::Literal(Cow::from("null")),
+                    Value::Number(1.0),
+                    Value::Literal(Cow::from("null")),
+                    Value::Number(1.0),
+                ]));
+    }
+
+    #[test]
     fn test_value_map() {
         let (input, output) = test_parser("(key1=123.45 key2=value key3='abc'key4=\"abc\")", value_map);
         assert_eq!(input, "");
@@ -492,6 +597,7 @@ mod tests {
                     ),
                 ])
             },
+            data: Default::default(),
             items: vec![
                 Item {
                     kind: "group".into_key(),
