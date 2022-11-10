@@ -8,11 +8,11 @@ mod value;
 #[cfg(feature = "query")]
 pub mod query;
 
+use item::{item, SumItem};
+
 pub type Error<'a> = NomErr<VerboseError<&'a str>>;
 pub type Result<'a, T> = ::std::result::Result<T, Error<'a>>;
 type ParseResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
-
-use item::{item, SumItem};
 
 /// 解析语法
 pub fn parse(input: &str) -> Result<DWSyntax> {
@@ -45,13 +45,18 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
          item| {
             match item {
                 SumItem::Item(item) => {
-                    match item.kind.as_ref() {
-                        "datawindow" => datawindow = item.values,
-                        "header" => header = item.values,
-                        "summary" => summary = item.values,
-                        "footer" => footer = item.values,
-                        "detail" => detail = item.values,
-                        _ => items.push(item)
+                    if item.kind == "datawindow" {
+                        datawindow = item.values;
+                    } else if item.kind == "header" {
+                        header = item.values;
+                    } else if item.kind == "summary" {
+                        summary = item.values;
+                    } else if item.kind == "footer" {
+                        footer = item.values;
+                    } else if item.kind == "detail" {
+                        detail = item.values;
+                    } else {
+                        items.push(item);
                     }
                 },
                 SumItem::ItemTable(item) => {
