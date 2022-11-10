@@ -116,80 +116,72 @@ fn table(input: &str) -> ParseResult<SumItem> {
 /// ```
 #[inline]
 fn data(input: &str) -> ParseResult<SumItem> {
-    use nom::{Offset,Slice};
-    fn null(input:&str)->ParseResult<Value>{
-        delimited(multispace0, tag("null").map(|v|{Value::Literal(Cow::from(v))}), multispace0)(input)
-    }
+    //yyyy-mm-dd
     fn date(input: &str) -> ParseResult<Value> {
-        let (i, _) = 
-            delimited(delimited(digit1, tag("-"), digit1), tag("-"), digit1)
-            (input)?;
-        let ofs = input.offset(i);
-        Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+        recognize(tuple((
+            map_parser(digit1, take(4usize)),
+            tag("-"),
+            map_parser(digit1, take(2usize)),
+            tag("-"),
+            map_parser(digit1, take(2usize))
+        )))
+        .map(|v: &str| Value::Literal(v.into()))
+        .parse(input)
     }
+    //hh:mm:ss:ssss
     fn time(input: &str) -> ParseResult<Value> {
-        let (i, _) = 
-            delimited(
-                delimited(delimited(digit1, tag(":"), digit1), tag(":"), digit1),
-                tag(":"),
-                digit1,
-            )(input)?;
-        let ofs = input.offset(i);
-        Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+        recognize(tuple((
+            map_parser(digit1, take(2usize)),
+            tag(":"),
+            map_parser(digit1, take(2usize)),
+            tag(":"),
+            map_parser(digit1, take(2usize)),
+            tag(":"),
+            map_parser(digit1, take(4usize))
+        )))
+        .map(|v: &str| Value::Literal(v.into()))
+        .parse(input)
     }
+    //yyyy-mm-dd hh:mm:ss:ssss
     fn datetime(input: &str) -> ParseResult<Value> {
-        let (i, _) = delimited(date, multispace1, time)(input)?;
-        let ofs = input.offset(i);
-        Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+        recognize(tuple((date, tag(" "), time))).map(|v: &str| Value::Literal(v.into())).parse(input)
     }
-    fn parser_dt(input:&str)->ParseResult<Value>{
-        context("datetime",alt((datetime,date,time)))(input)
+    //null
+    fn null(input: &str) -> ParseResult<Value> {
+        tag("null").map(|v: &str| Value::Literal(v.into())).parse(input)
     }
-    fn last_dot(input:&str)->ParseResult<Value>{
-        Ok((input,Value::List(vec![])))
+    //空格分隔的值列表
+    fn list(input: &str) -> ParseResult<Value> {
+        separated_list0(multispace1, alt((null, value::string, datetime, date, time, value::number)))
+            .map(Value::List)
+            .parse(input)
     }
-    fn parser_null(input:&str)->ParseResult<Value>{
-        let mut rt_vec:Vec<Value> = vec![];
-        let (mut input,output) = null(input)?;
-        rt_vec.push(output);
-        loop {
-            match null(input) {
-                Ok((i,o))=>{
-                    input = i;
-                    rt_vec.push(o);                       
-                },
-                Err(_)=>{
-                    if let Ok((input,o)) = alt((parser_dt,value::string,value::number,fail))(input)
-                    {
-                        rt_vec.push(o);
-                        return Ok((input,Value::List(rt_vec)));
-                    }
-                    break;
+    let parser = delimited(
+        tag("("),
+        separated_list0(
+            tag(","),
+            delimited(
+                multispace0,
+                //NOTE `list`可消除最后可选的(`,`),因为`separated_list0`始终会成功
+                alt((value::string, datetime, date, time, value::number, list)),
+                multispace0
+            )
+        ),
+        tag(")")
+    );
+    let mut parser = parser.map(|list| {
+        let mut rv = vec![];
+        for item in list {
+            match item {
+                Value::List(item) => rv.extend(item),
+                _ => {
+                    rv.push(item);
                 }
             }
         }
-        Ok((input,Value::List(rt_vec)))
-    }    
-    let mut parser = delimited(
-        tag("("),
-        separated_list0(tag(","),delimited(multispace0, alt((parser_null,parser_dt,value::string,value::number,last_dot,fail)),multispace0 ) )
-        .map(|v:Vec<Value>|{
-            let mut rv = vec![];
-            for item in v{
-                match item {
-                    Value::List(_item)=>{
-                        rv.extend(_item);
-                    },
-                    _=>{
-                        rv.push(item);
-                    }
-                }
-            };
-            rv
-        }),
-        tag(")"),
-    );
-    let (input, value) = parser(input)?;
+        rv
+    });
+    let (input, value) = parser.parse(input)?;
     Ok((input, SumItem::ItemData(value)))
 }
 
@@ -259,15 +251,17 @@ mod tests {
 
     #[test]
     fn test_item_data() {
-        let dw = r#"data(null null 0  ,"自增(ID)","\r\n参数1",1,2,3,null "固定,字符","参数2",null 1,null  1 ,null ,  )abc"#;
+        let dw = r#"data( 1, null  2001-12-31 12:00:12:0000,2001-12-31,11:11:23:0000  ,"自增(ID)","\r\n参数1",1,2,3,null "固定,字符","参数2",null 1,null, )abc"#;
         let (input, output) = test_parser(dw, item);
         assert_eq!(input, "abc");
         assert_eq!(
             output,
             SumItem::ItemData(vec![
+                Value::Number(1.0),
                 Value::Literal(Cow::from("null")),
-                Value::Literal(Cow::from("null")),
-                Value::Number(0.0),
+                Value::Literal(Cow::from("2001-12-31 12:00:12:0000")),
+                Value::Literal(Cow::from("2001-12-31")),
+                Value::Literal(Cow::from("11:11:23:0000")),
                 Value::DoubleQuotedString(Cow::from("自增(ID)")),
                 Value::DoubleQuotedString(Cow::from("\\r\\n参数1")),
                 Value::Number(1.0),
@@ -276,8 +270,6 @@ mod tests {
                 Value::Literal(Cow::from("null")),
                 Value::DoubleQuotedString(Cow::from("固定,字符")),
                 Value::DoubleQuotedString(Cow::from("参数2")),
-                Value::Literal(Cow::from("null")),
-                Value::Number(1.0),
                 Value::Literal(Cow::from("null")),
                 Value::Number(1.0),
                 Value::Literal(Cow::from("null")),
