@@ -219,37 +219,52 @@ fn item(input: &str) -> ParseResult<SumItem> {
     /// ```
     #[inline]
     fn data(input: &str) -> ParseResult<SumItem> {
-        fn null(input:&str)->ParseResult<&str>{
-            delimited(multispace0, tag("null"), multispace0)(input)
-        }  
-        fn spliteral(input:&str)->ParseResult<Value>{
+        use nom::{Offset,Slice};
+        fn null(input:&str)->ParseResult<Value>{
+            delimited(multispace0, tag("null").map(|v|{Value::Literal(Cow::from(v))}), multispace0)(input)
+        }
+        fn date(input: &str) -> ParseResult<Value> {
+            let (i, _) = 
+                delimited(delimited(digit1, tag("-"), digit1), tag("-"), digit1)
+                (input)?;
+            let ofs = input.offset(i);
+            Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+        }
+        fn time(input: &str) -> ParseResult<Value> {
+            let (i, _) = 
+                delimited(
+                    delimited(delimited(digit1, tag(":"), digit1), tag(":"), digit1),
+                    tag(":"),
+                    digit1,
+                )(input)?;
+            let ofs = input.offset(i);
+            Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+        }
+        fn datetime(input: &str) -> ParseResult<Value> {
+            let (i, _) = delimited(date, multispace1, time)(input)?;
+            let ofs = input.offset(i);
+            Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+        }
+        fn parser_dt(input:&str)->ParseResult<Value>{
+            context("datetime",alt((datetime,date,time)))(input)
+        }
+        fn last_dot(input:&str)->ParseResult<Value>{
+            Ok((input,Value::List(vec![])))
+        }
+        fn parser_null(input:&str)->ParseResult<Value>{
             let mut rt_vec:Vec<Value> = vec![];
-            let (mut input,_) = match null(input)
-            {
-                Ok((i,o)) =>{
-                    let (_,n) = value::literal(o)?;
-                    rt_vec.push(n);
-                    (i,o)
-                },
-                Err(_)=>{
-                    return Ok((input,Value::List(rt_vec)));
-                }
-            };
+            let (mut input,output) = null(input)?;
+            rt_vec.push(output);
             loop {
                 match null(input) {
                     Ok((i,o))=>{
                         input = i;
-                        let (_,o) = value::literal(o)?;
-                        rt_vec.push(o);
-
+                        rt_vec.push(o);                       
                     },
                     Err(_)=>{
-                        if input.len() > 0{
-                            let(i,o)= terminated(  terminated(alt((value::string,value::number,value::literal,fail)),multispace0) ,take_until(","))(input)?;
+                        if let Ok((input,o)) = alt((parser_dt,value::string,value::number,fail))(input)
+                        {
                             rt_vec.push(o);
-                            input = i
-                        }else{
-                            input = input;
                             return Ok((input,Value::List(rt_vec)));
                         }
                         break;
@@ -260,7 +275,7 @@ fn item(input: &str) -> ParseResult<SumItem> {
         }    
         let mut parser = delimited(
             tag("("),
-            separated_list0(tag(","),delimited(multispace0, alt((value::string,value::number,spliteral,fail)),multispace0 ) )
+            separated_list0(tag(","),delimited(multispace0, alt((parser_null,parser_dt,value::string,value::number,last_dot,fail)),multispace0 ) )
             .map(|v:Vec<Value>|{
                 let mut rv = vec![];
                 for item in v{
@@ -481,13 +496,15 @@ mod tests {
 
     #[test]
     fn test_item_data(){
-        let dw = r#"data(null null 0  ,"自增(ID)","\r\n参数1",1,2,3,null "固定,字符","参数2",null 1,null  1 ,  )abc"#;
+        let dw = r#"data( 1, null  2001-12-31 12:00:12:0000,2001-12-31,11:11:23:0000  ,"自增(ID)","\r\n参数1",1,2,3,null "固定,字符","参数2",null 1,null  1,  )abc"#;
         let (input,output) = test_parser(dw, item);
         assert_eq!(input,"abc");
         assert_eq!(output,SumItem::ItemData(vec![
+                    Value::Number(1.0),
                     Value::Literal(Cow::from("null")),
-                    Value::Literal(Cow::from("null")),
-                    Value::Number(0.0),
+                    Value::Literal(Cow::from("2001-12-31 12:00:12:0000")),
+                    Value::Literal(Cow::from("2001-12-31")),
+                    Value::Literal(Cow::from("11:11:23:0000")),
                     Value::DoubleQuotedString(Cow::from("自增(ID)")),
                     Value::DoubleQuotedString(Cow::from("\\r\\n参数1")),
                     Value::Number(1.0),
