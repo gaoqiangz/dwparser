@@ -164,7 +164,7 @@ impl<'a> Display for DWSyntax<'a> {
             write!(f, "{}\r\n", self.table)?;
         }
         if !self.data.is_empty() {
-            write!(f,"data({})\r\n",DataDisplay(&self.data))?;
+            write!(f, "data({})\r\n", DataDisplay(&self.data))?;
         }
         for item in &self.items {
             write!(f, "{item}\r\n")?;
@@ -396,15 +396,15 @@ impl<'a> Display for DataDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for value in self.0 {
             match value {
-                Value::Literal(_v) => {
-                    if _v == "null"{
-                        write!(f,"{} ",_v)?;
-                    }else{
-                        write!(f,"{},",_v)?;
+                Value::Literal(v) => {
+                    if v == "null" {
+                        write!(f, "{v} ")?;
+                    } else {
+                        write!(f, "{v}, ")?;
                     }
                 },
-                _=>{
-                    write!(f,"{}, ",value)?;
+                _ => {
+                    write!(f, "{value}, ")?;
                 }
             }
         }
