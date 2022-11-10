@@ -7,13 +7,11 @@ pub fn literal(input: &str) -> ParseResult<Value> {
         take_while1(|c: char| c.is_alphanumeric() || c == '.' || c == '_')(input)
     }
     /// 带括号的字面值
-    fn with_paren(orig_input: &str) -> ParseResult<&str> {
-        use nom::{Offset, Slice};
-        let (input, _) = terminated(alpha1, multispace0)(orig_input)?;
-        let (input, _) = delimited(tag("("), delimited(multispace0, normal, multispace0), tag(")"))(input)?;
-        //输出原始文本
-        let offset = orig_input.offset(&input);
-        Ok((input, orig_input.slice(..offset)))
+    fn with_paren(input: &str) -> ParseResult<&str> {
+        recognize(tuple((
+            terminated(alpha1, multispace0),
+            delimited(tag("("), delimited(multispace0, normal, multispace0), tag(")"))
+        )))(input)
     }
     //必须是字母开头
     satisfy(|c| c.is_alphabetic())(input)?;
