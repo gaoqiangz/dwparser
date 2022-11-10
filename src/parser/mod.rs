@@ -153,7 +153,7 @@ fn version(input: &str) -> ParseResult<f64> {
 /// ```txt
 /// map<key,value>
 /// ```
-fn value_map(input: &str) -> ParseResult<HashMap<KeyType, Value>> {
+fn value_map(input: &str) -> ParseResult<HashMap<Key, Value>> {
     let (mut input, _) = tag("(")(input)?;
     let mut values = HashMap::with_capacity(32);
     //手写循环替代`separated_list0`,以支持松散格式
@@ -188,8 +188,8 @@ fn value_map(input: &str) -> ParseResult<HashMap<KeyType, Value>> {
 /// ```txt
 /// (key,value)
 /// ```
-fn key_value(input: &str) -> ParseResult<(KeyType, Value)> {
-    fn key(input: &str) -> ParseResult<KeyType> {
+fn key_value(input: &str) -> ParseResult<(Key, Value)> {
+    fn key(input: &str) -> ParseResult<Key> {
         //必须是字母开头
         satisfy(|c| c.is_alphabetic())(input)?;
         context(

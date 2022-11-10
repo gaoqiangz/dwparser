@@ -35,7 +35,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// datawindow(key=value key=value)
     /// ```
-    pub datawindow: HashMap<KeyType<'a>, Value<'a>>,
+    pub datawindow: HashMap<Key<'a>, Value<'a>>,
     /// `header`语法项
     ///
     /// # Syntax
@@ -43,7 +43,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// header(key=value key=value)
     /// ```
-    pub header: HashMap<KeyType<'a>, Value<'a>>,
+    pub header: HashMap<Key<'a>, Value<'a>>,
     /// `summary`语法项
     ///
     /// # Syntax
@@ -51,7 +51,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// summary(key=value key=value)
     /// ```
-    pub summary: HashMap<KeyType<'a>, Value<'a>>,
+    pub summary: HashMap<Key<'a>, Value<'a>>,
     /// `footer`语法项
     ///
     /// # Syntax
@@ -59,7 +59,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// footer(key=value key=value)
     /// ```
-    pub footer: HashMap<KeyType<'a>, Value<'a>>,
+    pub footer: HashMap<Key<'a>, Value<'a>>,
     /// `detail`语法项
     ///
     /// # Syntax
@@ -67,7 +67,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// detail(key=value key=value)
     /// ```
-    pub detail: HashMap<KeyType<'a>, Value<'a>>,
+    pub detail: HashMap<Key<'a>, Value<'a>>,
     /// `table`语法项
     ///
     /// # Syntax
@@ -180,10 +180,10 @@ impl<'a> Display for DWSyntax<'a> {
 /// ```
 #[derive(Debug, PartialEq)]
 pub struct Item<'a> {
-    pub kind: KeyType<'a>,
-    pub name: Option<KeyType<'a>>,
+    pub kind: Key<'a>,
+    pub name: Option<Key<'a>>,
     pub id: Option<u32>,
-    pub values: HashMap<KeyType<'a>, Value<'a>>
+    pub values: HashMap<Key<'a>, Value<'a>>
 }
 
 impl<'a> Display for Item<'a> {
@@ -201,7 +201,7 @@ impl<'a> Display for Item<'a> {
 #[derive(Debug, PartialEq, Default)]
 pub struct ItemTable<'a> {
     pub columns: Vec<ItemTableColumn<'a>>,
-    pub values: HashMap<KeyType<'a>, Value<'a>>
+    pub values: HashMap<Key<'a>, Value<'a>>
 }
 
 impl<'a> ItemTable<'a> {
@@ -227,8 +227,8 @@ impl<'a> Display for ItemTable<'a> {
 /// ```
 #[derive(Debug, PartialEq)]
 pub struct ItemTableColumn<'a> {
-    pub name: Option<KeyType<'a>>,
-    pub values: HashMap<KeyType<'a>, Value<'a>>
+    pub name: Option<Key<'a>>,
+    pub values: HashMap<Key<'a>, Value<'a>>
 }
 
 impl<'a> Display for ItemTableColumn<'a> {
@@ -260,7 +260,7 @@ pub enum Value<'a> {
     /// Key-Value值列表
     ///
     /// `(key=value key=value)`
-    Map(HashMap<KeyType<'a>, Value<'a>>),
+    Map(HashMap<Key<'a>, Value<'a>>),
     /// 多值列表
     ///
     /// - `("abcd", "abcd")`
@@ -311,7 +311,7 @@ impl<'a> Value<'a> {
     }
 
     /// 获取Key-Value值列表
-    pub fn as_map(&self) -> Option<&HashMap<KeyType<'a>, Value<'a>>> {
+    pub fn as_map(&self) -> Option<&HashMap<Key<'a>, Value<'a>>> {
         match self {
             Value::Map(v) => Some(v),
             _ => None
@@ -356,7 +356,7 @@ impl<'a> Display for Value<'a> {
     }
 }
 
-struct MapDisplay<'a>(&'a HashMap<KeyType<'a>, Value<'a>>);
+struct MapDisplay<'a>(&'a HashMap<Key<'a>, Value<'a>>);
 
 impl<'a> Display for MapDisplay<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

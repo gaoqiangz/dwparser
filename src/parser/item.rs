@@ -40,7 +40,7 @@ pub fn item(input: &str) -> ParseResult<SumItem> {
 /// (key=value key2=value)
 /// ```
 #[inline]
-fn normal<'a>(kind: KeyType<'a>, input: &'a str) -> ParseResult<'a, SumItem<'a>> {
+fn normal<'a>(kind: Key<'a>, input: &'a str) -> ParseResult<'a, SumItem<'a>> {
     let (input, values) = value_map(input)?;
     let name = values.get(&"name".into_key()).and_then(|v| v.as_literal()).map(|v| v.clone().into_key());
     let id = values.get(&"id".into_key()).and_then(|v| v.as_number()).map(|v| v as u32);

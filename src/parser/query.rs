@@ -18,7 +18,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
     enum ModifyKind<'a> {
         Assign(&'a str, Value<'a>),
         Create(SumItem<'a>),
-        Destroy(KeyType<'a>)
+        Destroy(Key<'a>)
     }
     fn assign(input: &str) -> ParseResult<ModifyKind> {
         fn key(input: &str) -> ParseResult<&str> {
@@ -74,9 +74,9 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                     SelectResult::Map(map, key) => {
                         //SAFETY
                         //转换为mutable引用
-                        let map: &'a mut HashMap<KeyType<'b>, Value<'b>> = unsafe {
-                            let map = map as *const HashMap<KeyType, Value>;
-                            let map = map as *mut HashMap<KeyType, Value>;
+                        let map: &'a mut HashMap<Key<'b>, Value<'b>> = unsafe {
+                            let map = map as *const HashMap<Key, Value>;
+                            let map = map as *mut HashMap<Key, Value>;
                             &mut *map
                         };
                         map.insert(Cow::clone(&key).into_owned().into_key(), value.to_owned());
@@ -95,7 +95,7 @@ enum SelectResult<'a, 'b: 'a, 'c> {
     /// 选择到值
     Value(&'a Value<'b>),
     /// 未选取到值
-    Map(&'a HashMap<KeyType<'b>, Value<'b>>, KeyType<'c>)
+    Map(&'a HashMap<Key<'b>, Value<'b>>, Key<'c>)
 }
 
 /// 选择指定语法项的参数项
