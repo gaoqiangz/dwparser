@@ -3,20 +3,16 @@ use nom::{
     branch::*, bytes::complete::*, character::complete::*, combinator::*, error::{context, convert_error, make_error, ErrorKind, VerboseError}, multi::*, number::complete::*, sequence::*, Err as NomErr, IResult, Parser
 };
 
+mod item;
 mod value;
 #[cfg(feature = "query")]
 pub mod query;
 
+use item::{item, SumItem};
+
 pub type Error<'a> = NomErr<VerboseError<&'a str>>;
 pub type Result<'a, T> = ::std::result::Result<T, Error<'a>>;
 type ParseResult<'a, T> = IResult<&'a str, T, VerboseError<&'a str>>;
-
-#[derive(Debug, PartialEq)]
-enum SumItem<'a> {
-    Item(Item<'a>),
-    ItemTable(ItemTable<'a>),
-    ItemData(Vec<Value<'a>>)
-}
 
 /// 解析语法
 pub fn parse(input: &str) -> Result<DWSyntax> {
@@ -36,22 +32,37 @@ pub fn parse(input: &str) -> Result<DWSyntax> {
                 Vec::with_capacity(2048)
             )
         },
-        |(mut datawindow, mut header, mut summary, mut footer, mut detail, mut table,mut data, mut items), item| {
+        |(
+            mut datawindow,
+            mut header,
+            mut summary,
+            mut footer,
+            mut detail,
+            mut table,
+            mut data,
+            mut items
+        ),
+         item| {
             match item {
                 SumItem::Item(item) => {
-                    match item.kind.as_ref() {
-                        "datawindow" => datawindow = item.values,
-                        "header" => header = item.values,
-                        "summary" => summary = item.values,
-                        "footer" => footer = item.values,
-                        "detail" => detail = item.values,
-                        _ => items.push(item)
+                    if item.kind == "datawindow" {
+                        datawindow = item.values;
+                    } else if item.kind == "header" {
+                        header = item.values;
+                    } else if item.kind == "summary" {
+                        summary = item.values;
+                    } else if item.kind == "footer" {
+                        footer = item.values;
+                    } else if item.kind == "detail" {
+                        detail = item.values;
+                    } else {
+                        items.push(item);
                     }
                 },
                 SumItem::ItemTable(item) => {
                     table = item;
                 },
-                SumItem::ItemData(item)=>{
+                SumItem::ItemData(item) => {
                     data = item;
                 }
             }
@@ -129,192 +140,6 @@ fn version(input: &str) -> ParseResult<f64> {
     )(input)
 }
 
-/// 语法项解析
-///
-/// # Input
-///
-/// ```txt
-/// item(key=value key2=value)
-/// ```
-fn item(input: &str) -> ParseResult<SumItem> {
-    /// 普通语法项解析
-    ///
-    /// # Input
-    ///
-    /// ```txt
-    /// (key=value key2=value)
-    /// ```
-    #[inline]
-    fn normal<'a>(kind: KeyType<'a>, input: &'a str) -> ParseResult<'a, SumItem<'a>> {
-        let (input, values) = value_map(input)?;
-        let name = values.get(&"name".into_key()).and_then(|v| v.as_literal()).map(|v| v.clone().into_key());
-        let id = values.get(&"id".into_key()).and_then(|v| v.as_number()).map(|v| v as u32);
-        Ok((
-            input,
-            SumItem::Item(Item {
-                kind,
-                name,
-                id,
-                values
-            })
-        ))
-    }
-    /// `table`语法项解析
-    ///
-    /// # Input
-    ///
-    /// ```txt
-    /// (column=(type=type) column=(type=type) key=value key=value)
-    /// ```
-    #[inline]
-    fn table(input: &str) -> ParseResult<SumItem> {
-        let (mut input, _) = tag("(")(input)?;
-        let mut columns = Vec::with_capacity(64);
-        let mut values = HashMap::with_capacity(8);
-        //手写循环替代`separated_list0`,以支持松散格式
-        //如:
-        // key="value"key=123
-        // key=char(10)key=123
-        loop {
-            match delimited(multispace0, key_value, multispace0)(input) {
-                Ok((remaining, (key, value))) => {
-                    if key == "column" {
-                        if let Value::Map(values) = value {
-                            let name = values
-                                .get(&"name".into_key())
-                                .and_then(|v| v.as_literal())
-                                .map(|v| v.clone().into_key());
-                            columns.push(ItemTableColumn {
-                                name,
-                                values
-                            })
-                        } else {
-                            return Err(NomErr::Error(make_error(input, ErrorKind::Fail)));
-                        }
-                    } else {
-                        values.insert(key, value);
-                    }
-                    input = remaining;
-                },
-                Err(NomErr::Error(_)) => {
-                    let (input, _) = tag(")")(input)?;
-                    return Ok((
-                        input,
-                        SumItem::ItemTable(ItemTable {
-                            columns,
-                            values
-                        })
-                    ));
-                },
-                Err(e) => return Err(e)
-            }
-        }
-    }
-    /// `data`语法项解析
-    ///
-    /// # Input
-    ///
-    /// ```txt
-    /// data(...)
-    /// ```
-    #[inline]
-    fn data(input: &str) -> ParseResult<SumItem> {
-        use nom::{Offset,Slice};
-        fn null(input:&str)->ParseResult<Value>{
-            delimited(multispace0, tag("null").map(|v|{Value::Literal(Cow::from(v))}), multispace0)(input)
-        }
-        fn date(input: &str) -> ParseResult<Value> {
-            let (i, _) = 
-                delimited(delimited(digit1, tag("-"), digit1), tag("-"), digit1)
-                (input)?;
-            let ofs = input.offset(i);
-            Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
-        }
-        fn time(input: &str) -> ParseResult<Value> {
-            let (i, _) = 
-                delimited(
-                    delimited(delimited(digit1, tag(":"), digit1), tag(":"), digit1),
-                    tag(":"),
-                    digit1,
-                )(input)?;
-            let ofs = input.offset(i);
-            Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
-        }
-        fn datetime(input: &str) -> ParseResult<Value> {
-            let (i, _) = delimited(date, multispace1, time)(input)?;
-            let ofs = input.offset(i);
-            Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
-        }
-        fn parser_dt(input:&str)->ParseResult<Value>{
-            context("datetime",alt((datetime,date,time)))(input)
-        }
-        fn last_dot(input:&str)->ParseResult<Value>{
-            Ok((input,Value::List(vec![])))
-        }
-        fn parser_null(input:&str)->ParseResult<Value>{
-            let mut rt_vec:Vec<Value> = vec![];
-            let (mut input,output) = null(input)?;
-            rt_vec.push(output);
-            loop {
-                match null(input) {
-                    Ok((i,o))=>{
-                        input = i;
-                        rt_vec.push(o);                       
-                    },
-                    Err(_)=>{
-                        if let Ok((input,o)) = alt((parser_dt,value::string,value::number,fail))(input)
-                        {
-                            rt_vec.push(o);
-                            return Ok((input,Value::List(rt_vec)));
-                        }
-                        break;
-                    }
-                }
-            }
-            Ok((input,Value::List(rt_vec)))
-        }    
-        let mut parser = delimited(
-            tag("("),
-            separated_list0(tag(","),delimited(multispace0, alt((parser_null,parser_dt,value::string,value::number,last_dot,fail)),multispace0 ) )
-            .map(|v:Vec<Value>|{
-                let mut rv = vec![];
-                for item in v{
-                    match item {
-                        Value::List(_item)=>{
-                            for _v in _item{
-                                rv.push(_v);
-                            }
-                        },
-                        _=>{
-                            rv.push(item);
-                        }
-                    }
-                };
-                rv
-            }),
-            tag(")"),
-        );
-        let (input, value) = parser(input)?;
-        Ok((input, SumItem::ItemData(value)))
-    }
-    
-    fn parse(input: &str) -> ParseResult<SumItem> {
-        let (input, kind) = delimited(
-            multispace0,
-            take_while1(|c: char| c.is_alphabetic() || c == '.').map(IntoKey::into_key),
-            multispace0
-        )(input)?;
-        if kind == "table" {
-            table(input)
-        } else if kind == "data"{
-            data(input)
-        } else{
-            normal(kind, input)
-        }
-    }
-    context("item", parse)(input)
-}
-
 /// 参数列表解析-MAP类型
 ///
 /// # Input
@@ -328,7 +153,7 @@ fn item(input: &str) -> ParseResult<SumItem> {
 /// ```txt
 /// map<key,value>
 /// ```
-fn value_map(input: &str) -> ParseResult<HashMap<KeyType, Value>> {
+fn value_map(input: &str) -> ParseResult<HashMap<Key, Value>> {
     let (mut input, _) = tag("(")(input)?;
     let mut values = HashMap::with_capacity(32);
     //手写循环替代`separated_list0`,以支持松散格式
@@ -363,8 +188,8 @@ fn value_map(input: &str) -> ParseResult<HashMap<KeyType, Value>> {
 /// ```txt
 /// (key,value)
 /// ```
-fn key_value(input: &str) -> ParseResult<(KeyType, Value)> {
-    fn key(input: &str) -> ParseResult<KeyType> {
+fn key_value(input: &str) -> ParseResult<(Key, Value)> {
+    fn key(input: &str) -> ParseResult<Key> {
         //必须是字母开头
         satisfy(|c| c.is_alphabetic())(input)?;
         context(

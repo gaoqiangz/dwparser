@@ -9,12 +9,12 @@ mod prelude {
     pub use std::collections::HashMap;
 
     #[cfg(feature = "case_insensitive")]
-    pub type KeyType<'a> = unicase::Ascii<Cow<'a, str>>;
+    pub type Key<'a> = unicase::Ascii<Cow<'a, str>>;
     #[cfg(not(feature = "case_insensitive"))]
-    pub type KeyType<'a> = Cow<'a, str>;
+    pub type Key<'a> = Cow<'a, str>;
 
     pub trait IntoKey<'a> {
-        fn into_key(self) -> KeyType<'a>;
+        fn into_key(self) -> Key<'a>;
     }
 
     #[cfg(feature = "case_insensitive")]
@@ -22,7 +22,7 @@ mod prelude {
     where
         T: Into<Cow<'a, str>>
     {
-        fn into_key(self) -> KeyType<'a> { KeyType::new(self.into()) }
+        fn into_key(self) -> Key<'a> { Key::new(self.into()) }
     }
 
     #[cfg(not(feature = "case_insensitive"))]
@@ -30,7 +30,7 @@ mod prelude {
     where
         T: Into<Cow<'a, str>>
     {
-        fn into_key(self) -> KeyType<'a> { self.into() }
+        fn into_key(self) -> Key<'a> { self.into() }
     }
 }
 
