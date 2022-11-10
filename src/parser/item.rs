@@ -116,33 +116,80 @@ fn table(input: &str) -> ParseResult<SumItem> {
 /// ```
 #[inline]
 fn data(input: &str) -> ParseResult<SumItem> {
-    fn null(input: &str) -> ParseResult<Value> {
-        tag("null").map(|v: &str| Value::Literal(v.into())).parse(input)
+    use nom::{Offset,Slice};
+    fn null(input:&str)->ParseResult<Value>{
+        delimited(multispace0, tag("null").map(|v|{Value::Literal(Cow::from(v))}), multispace0)(input)
     }
-    fn null_leading_list(input: &str) -> ParseResult<Value> {
-        separated_list0(multispace1, alt((null, value::string, value::number))).map(Value::List).parse(input)
+    fn date(input: &str) -> ParseResult<Value> {
+        let (i, _) = 
+            delimited(delimited(digit1, tag("-"), digit1), tag("-"), digit1)
+            (input)?;
+        let ofs = input.offset(i);
+        Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
     }
-    let parser = delimited(
-        tag("("),
-        separated_list0(
-            tag(","),
-            delimited(multispace0, alt((value::string, value::number, null_leading_list, fail)), multispace0)
-        ),
-        tag(")")
-    );
-    let mut parser = parser.map(|list| {
-        let mut rv = vec![];
-        for item in list {
-            match item {
-                Value::List(item) => rv.extend(item),
-                _ => {
-                    rv.push(item);
+    fn time(input: &str) -> ParseResult<Value> {
+        let (i, _) = 
+            delimited(
+                delimited(delimited(digit1, tag(":"), digit1), tag(":"), digit1),
+                tag(":"),
+                digit1,
+            )(input)?;
+        let ofs = input.offset(i);
+        Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+    }
+    fn datetime(input: &str) -> ParseResult<Value> {
+        let (i, _) = delimited(date, multispace1, time)(input)?;
+        let ofs = input.offset(i);
+        Ok((input.slice(ofs..), Value::Literal(input.slice(..ofs).into())))
+    }
+    fn parser_dt(input:&str)->ParseResult<Value>{
+        context("datetime",alt((datetime,date,time)))(input)
+    }
+    fn last_dot(input:&str)->ParseResult<Value>{
+        Ok((input,Value::List(vec![])))
+    }
+    fn parser_null(input:&str)->ParseResult<Value>{
+        let mut rt_vec:Vec<Value> = vec![];
+        let (mut input,output) = null(input)?;
+        rt_vec.push(output);
+        loop {
+            match null(input) {
+                Ok((i,o))=>{
+                    input = i;
+                    rt_vec.push(o);                       
+                },
+                Err(_)=>{
+                    if let Ok((input,o)) = alt((parser_dt,value::string,value::number,fail))(input)
+                    {
+                        rt_vec.push(o);
+                        return Ok((input,Value::List(rt_vec)));
+                    }
+                    break;
                 }
             }
         }
-        rv
-    });
-    let (input, value) = parser.parse(input)?;
+        Ok((input,Value::List(rt_vec)))
+    }    
+    let mut parser = delimited(
+        tag("("),
+        separated_list0(tag(","),delimited(multispace0, alt((parser_null,parser_dt,value::string,value::number,last_dot,fail)),multispace0 ) )
+        .map(|v:Vec<Value>|{
+            let mut rv = vec![];
+            for item in v{
+                match item {
+                    Value::List(_item)=>{
+                        rv.extend(_item);
+                    },
+                    _=>{
+                        rv.push(item);
+                    }
+                }
+            };
+            rv
+        }),
+        tag(")"),
+    );
+    let (input, value) = parser(input)?;
     Ok((input, SumItem::ItemData(value)))
 }
 
