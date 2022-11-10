@@ -178,9 +178,7 @@ fn data(input: &str) -> ParseResult<SumItem> {
             for item in v{
                 match item {
                     Value::List(_item)=>{
-                        for _v in _item{
-                            rv.push(_v);
-                        }
+                        rv.extend(_item);
                     },
                     _=>{
                         rv.push(item);
