@@ -36,6 +36,8 @@ fn main() {
         dw.modify("datawindow.table.column.col1.type=long");
         dw.modify("datawindow.group.1.prop='test prop'");
         dw.modify("compute_1.expression='getrow()'");
+        dw.modify("destroy compute_1");
+        dw.modify(r#"create compute(name=compute_2 level=2 band=trailer.5 alignment="2"   )"#);
     }
 
     println!("\r\nToString:\r\n{}", dw);

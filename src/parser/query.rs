@@ -1,14 +1,27 @@
 use super::*;
-use std::mem::transmute;
 
 /// 获取指定语法项的参数值
 ///
 /// 兼容`DataWindow::Describe`参数
 pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, Option<&'a Value<'b>>> {
-    match select(syn, input)? {
-        SelectResult::Value(v) => Ok(Some(v)),
-        _ => Ok(None)
+    let SelectResult {
+        root: container,
+        key
+    } = select(syn, input)?;
+    if key.is_empty() {
+        return Ok(None);
     }
+    let values = match container {
+        SelectRoot::DataWindow => &syn.datawindow,
+        SelectRoot::Header => &syn.header,
+        SelectRoot::Summary => &syn.summary,
+        SelectRoot::Footer => &syn.footer,
+        SelectRoot::Detail => &syn.detail,
+        SelectRoot::Item(index) => &syn.items[index].values,
+        SelectRoot::ItemTable => &syn.table.values,
+        SelectRoot::ItemTableColumn(index) => &syn.table.columns[index].values
+    };
+    Ok(values.get(&key))
 }
 
 /// 修改语法项的参数值
@@ -18,7 +31,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
     enum ModifyKind<'a> {
         Assign(&'a str, Value<'a>),
         Create(SumItem<'a>),
-        Destroy(Key<'a>)
+        Destroy(&'a str)
     }
     fn assign(input: &str) -> ParseResult<ModifyKind> {
         fn key(input: &str) -> ParseResult<&str> {
@@ -45,7 +58,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
         #[cfg(not(feature = "case_insensitive"))]
         let (input, _) = tag("create")(input)?;
         let (input, _) = multispace1(input)?;
-        name.map(|v| ModifyKind::Destroy(v.into_key())).parse(input)
+        name.map(ModifyKind::Destroy).parse(input)
     }
     let (_, modifies) = terminated(
         preceded(
@@ -60,219 +73,273 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
     for kind in modifies {
         match kind {
             ModifyKind::Assign(selector, value) => {
-                match select(syn, selector)? {
-                    SelectResult::Value(v) => {
-                        //SAFETY
-                        //转换为mutable引用
-                        let v: &'a mut Value<'b> = unsafe {
-                            let v = v as *const Value;
-                            let v = v as *mut Value;
-                            &mut *v
-                        };
-                        *v = value.to_owned();
+                let SelectResult {
+                    root,
+                    key
+                } = select(syn, selector)?;
+                if key.is_empty() {
+                    return Err(NomErr::Error(make_error(selector, ErrorKind::Fail)));
+                }
+                let values = match root {
+                    SelectRoot::DataWindow => &mut syn.datawindow,
+                    SelectRoot::Header => &mut syn.header,
+                    SelectRoot::Summary => &mut syn.summary,
+                    SelectRoot::Footer => &mut syn.footer,
+                    SelectRoot::Detail => &mut syn.detail,
+                    SelectRoot::Item(index) => &mut syn.items[index].values,
+                    SelectRoot::ItemTable => &mut syn.table.values,
+                    SelectRoot::ItemTableColumn(index) => &mut syn.table.columns[index].values
+                };
+                values.insert(key, value.to_owned());
+            },
+            ModifyKind::Create(new_item) => {
+                let new_item = new_item.to_owned();
+                match new_item {
+                    SumItem::Item(new_item) => {
+                        if new_item.kind == "datawindow" {
+                            syn.datawindow = new_item.values;
+                        } else if new_item.kind == "header" {
+                            syn.header = new_item.values;
+                        } else if new_item.kind == "summary" {
+                            syn.summary = new_item.values;
+                        } else if new_item.kind == "footer" {
+                            syn.footer = new_item.values;
+                        } else if new_item.kind == "detail" {
+                            syn.detail = new_item.values;
+                        } else {
+                            for item in &mut syn.items {
+                                if item.kind == new_item.kind &&
+                                    (item.name == new_item.name || item.id == new_item.id)
+                                {
+                                    *item = new_item;
+                                    return Ok(());
+                                }
+                            }
+                            syn.items.push(new_item);
+                        }
                     },
-                    SelectResult::Map(map, key) => {
-                        //SAFETY
-                        //转换为mutable引用
-                        let map: &'a mut HashMap<Key<'b>, Value<'b>> = unsafe {
-                            let map = map as *const HashMap<Key, Value>;
-                            let map = map as *mut HashMap<Key, Value>;
-                            &mut *map
-                        };
-                        map.insert(Cow::clone(&key).into_owned().into_key(), value.to_owned());
-                    }
+                    SumItem::ItemData(new_item) => syn.data = new_item,
+                    SumItem::ItemTable(new_item) => syn.table = new_item
                 }
             },
-            ModifyKind::Create(item) => todo!(),
-            ModifyKind::Destroy(name) => todo!()
+            ModifyKind::Destroy(name) => {
+                let SelectResult {
+                    root,
+                    key
+                } = select(syn, name)?;
+                if !key.is_empty() {
+                    return Err(NomErr::Error(make_error(name, ErrorKind::Fail)));
+                }
+                match root {
+                    SelectRoot::DataWindow => syn.datawindow.clear(),
+                    SelectRoot::Header => syn.header.clear(),
+                    SelectRoot::Summary => syn.summary.clear(),
+                    SelectRoot::Footer => syn.footer.clear(),
+                    SelectRoot::Detail => syn.detail.clear(),
+                    SelectRoot::Item(index) => {
+                        syn.items.remove(index);
+                    },
+                    SelectRoot::ItemTable => {
+                        syn.table.columns.clear();
+                        syn.table.values.clear();
+                    },
+                    SelectRoot::ItemTableColumn(index) => {
+                        syn.table.columns.remove(index);
+                    }
+                }
+            }
         }
     }
     Ok(())
 }
 
 /// 选取结果
-enum SelectResult<'a, 'b: 'a, 'c> {
-    /// 选择到值
-    Value(&'a Value<'b>),
-    /// 未选取到值
-    Map(&'a HashMap<Key<'b>, Value<'b>>, Key<'c>)
+struct SelectResult<'a> {
+    root: SelectRoot,
+    key: Key<'a>
+}
+
+/// 选取的语法项根元素
+enum SelectRoot {
+    DataWindow,
+    Header,
+    Summary,
+    Footer,
+    Detail,
+    Item(usize),
+    ItemTable,
+    ItemTableColumn(usize)
 }
 
 /// 选择指定语法项的参数项
-fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, SelectResult<'a, 'b, 'c>> {
-    //解析选择语法
+fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult<'a>> {
     let (_, selector) = terminated(
         preceded(multispace0, separated_list1(tag("."), alt((name, index)).map(IntoKey::into_key))),
         terminated(multispace0, eof)
     )(input)?;
-    if selector.len() < 2 {
+    if selector.len() < 1 {
         return Err(NomErr::Error(make_error(input, ErrorKind::Eof)));
     }
     let mut selector = selector.into_iter();
+    let mut root = None;
     let mut prefix = String::new();
 
     //选取参数列表
-    let values = {
+    let name = selector.next().unwrap();
+    //datawindow名称下的语法项
+    if name == "datawindow" {
+        //TODO
+        //- tree
         let name = selector.next().unwrap();
-        //datawindow名称下的语法项
-        if name == "datawindow" {
-            //TODO
-            //- tree
-            let name = selector.next().unwrap();
-            if name == "header" {
-                let mut values = &syn.header;
-                //datawindow.header.<group #>.prop
-                if selector.len() >= 2 {
-                    let name = selector.next().unwrap();
-                    if let Ok(level) = name.parse() {
-                        if let Some(item) = find_group(&syn.items, level) {
-                            prefix = "header".to_owned();
-                            values = &item.values;
-                        } else {
-                            return Err(NomErr::Error(make_error(
-                                //SAFETY
-                                unsafe { transmute(name.as_ref()) },
-                                ErrorKind::Fail
-                            )));
-                        }
-                    }
-                }
-                values
-            } else if name == "footer" {
-                let mut values = &syn.footer;
-                //datawindow.footer.<group #>.prop
-                if selector.len() >= 2 {
-                    let name = selector.next().unwrap();
-                    if let Ok(level) = name.parse() {
-                        if let Some(item) = find_group(&syn.items, level) {
-                            prefix = "footer".to_owned();
-                            values = &item.values;
-                        } else {
-                            return Err(NomErr::Error(make_error(
-                                //SAFETY
-                                unsafe { transmute(name.as_ref()) },
-                                ErrorKind::Fail
-                            )));
-                        }
-                    }
-                }
-                values
-            } else if name == "trailer" {
-                let mut values = None;
-                //datawindow.trailer.<group #>.prop
-                if selector.len() >= 2 {
-                    if let Ok(level) = selector.next().unwrap().parse() {
-                        if let Some(item) = find_group(&syn.items, level) {
-                            prefix = "trailer".to_owned();
-                            values = Some(&item.values);
-                        }
-                    }
-                }
-                match values {
-                    Some(values) => values,
-                    None => {
+        if name == "header" {
+            root = Some(SelectRoot::Header);
+            //datawindow.header.<group #>.prop
+            if selector.len() >= 2 {
+                let name = selector.next().unwrap();
+                if let Ok(level) = name.parse() {
+                    if let Some((index, _)) = find_group(&syn.items, level) {
+                        root = Some(SelectRoot::Item(index));
+                        prefix = "header".to_owned();
+                    } else {
                         return Err(NomErr::Error(make_error(
                             //SAFETY
-                            unsafe { transmute(name.as_ref()) },
+                            name.borrowed().unwrap(),
                             ErrorKind::Fail
                         )));
                     }
                 }
-            } else if name == "group" {
-                let mut values = None;
-                //datawindow.group.<group #>.prop
-                if selector.len() >= 2 {
-                    if let Ok(level) = selector.next().unwrap().parse() {
-                        if let Some(item) = find_group(&syn.items, level) {
-                            values = Some(&item.values);
-                        }
-                    }
-                }
-                match values {
-                    Some(values) => values,
-                    None => {
+            }
+        } else if name == "footer" {
+            root = Some(SelectRoot::Footer);
+            //datawindow.footer.<group #>.prop
+            if selector.len() >= 2 {
+                let name = selector.next().unwrap();
+                if let Ok(level) = name.parse() {
+                    if let Some((index, _)) = find_group(&syn.items, level) {
+                        root = Some(SelectRoot::Item(index));
+                        prefix = "footer".to_owned();
+                    } else {
                         return Err(NomErr::Error(make_error(
                             //SAFETY
-                            unsafe { transmute(name.as_ref()) },
+                            name.borrowed().unwrap(),
                             ErrorKind::Fail
                         )));
                     }
                 }
-            } else if name == "summary" {
-                &syn.summary
-            } else if name == "detail" {
-                &syn.detail
-            } else if name == "table" {
-                let mut values = &syn.table.values;
-                //- datawindow.table.column.<column #>.prop
-                //- datawindow.table.column.<column name>.prop
-                if selector.len() >= 3 {
+            }
+        } else if name == "trailer" {
+            let mut found = false;
+            //datawindow.trailer.<group #>.prop
+            if selector.len() >= 2 {
+                if let Ok(level) = selector.next().unwrap().parse() {
+                    if let Some((index, _)) = find_group(&syn.items, level) {
+                        root = Some(SelectRoot::Item(index));
+                        prefix = "trailer".to_owned();
+                        found = true;
+                    }
+                }
+            }
+            if !found {
+                return Err(NomErr::Error(make_error(
+                    //SAFETY
+                    name.borrowed().unwrap(),
+                    ErrorKind::Fail
+                )));
+            }
+        } else if name == "group" {
+            let mut found = false;
+            //datawindow.group.<group #>.prop
+            if selector.len() >= 2 {
+                if let Ok(level) = selector.next().unwrap().parse() {
+                    if let Some((index, _)) = find_group(&syn.items, level) {
+                        root = Some(SelectRoot::Item(index));
+                        found = true;
+                    }
+                }
+            }
+            if !found {
+                return Err(NomErr::Error(make_error(
+                    //SAFETY
+                    name.borrowed().unwrap(),
+                    ErrorKind::Fail
+                )));
+            }
+        } else if name == "summary" {
+            root = Some(SelectRoot::Summary);
+        } else if name == "detail" {
+            root = Some(SelectRoot::Detail);
+        } else if name == "table" {
+            root = Some(SelectRoot::ItemTable);
+            //- datawindow.table.column.<column #>.prop
+            //- datawindow.table.column.<column name>.prop
+            if selector.len() >= 3 {
+                let name = selector.next().unwrap();
+                if name == "column" {
                     let name = selector.next().unwrap();
-                    if name == "column" {
-                        let name = selector.next().unwrap();
-                        if let Ok(idx) = name.parse::<usize>() {
-                            if idx > 0 && idx <= syn.table.columns.len() {
-                                values = &syn.table.columns[idx - 1].values;
-                            } else {
-                                return Err(NomErr::Error(make_error(
-                                    //SAFETY
-                                    unsafe { transmute(name.as_ref()) },
-                                    ErrorKind::Fail
-                                )));
-                            }
-                        } else if let Some(item) = find_table_column(&syn.table.columns, name.as_ref()) {
-                            values = &item.values;
+                    if let Ok(idx) = name.parse::<usize>() {
+                        if idx > 0 && idx <= syn.table.columns.len() {
+                            root = Some(SelectRoot::ItemTableColumn(idx - 1));
+                        } else {
+                            return Err(NomErr::Error(make_error(
+                                //SAFETY
+                                name.borrowed().unwrap(),
+                                ErrorKind::Fail
+                            )));
+                        }
+                    } else if let Some((index, _)) = find_table_column(&syn.table.columns, name.as_ref()) {
+                        root = Some(SelectRoot::ItemTableColumn(index));
+                    }
+                }
+            }
+        } else {
+            root = Some(SelectRoot::DataWindow);
+            prefix = name.as_ref().to_owned();
+        }
+    }
+    //具名的普通语法项
+    else {
+        match find_item(&syn.items, name.as_ref()) {
+            Some((index, item)) => {
+                root = Some(SelectRoot::Item(index));
+                //特殊处理字段属性
+                //- col.coltype
+                //- col.dbname
+                if selector.len() == 1 && item.kind == "column" && item.id.is_some() {
+                    let name = selector.next().unwrap();
+                    prefix = name.as_ref().to_owned();
+                    if name == "coltype" || name == "dbname" {
+                        let idx = item.id.unwrap() as usize;
+                        if idx > 0 && idx <= syn.table.columns.len() {
+                            root = Some(SelectRoot::ItemTableColumn(idx - 1));
+                        } else {
+                            return Err(NomErr::Error(make_error(
+                                //SAFETY
+                                name.borrowed().unwrap(),
+                                ErrorKind::Fail
+                            )));
+                        }
+                        //alias
+                        if name == "coltype" {
+                            prefix = "type".to_owned();
                         }
                     }
                 }
-                values
-            } else {
-                prefix = name.as_ref().to_owned();
-                &syn.datawindow
+            },
+            None => {
+                return Err(NomErr::Error(make_error(
+                    //SAFETY
+                    name.borrowed().unwrap(),
+                    ErrorKind::Fail
+                )));
             }
         }
-        //具名的普通语法项
-        else {
-            match find_item(&syn.items, name.as_ref()) {
-                Some(item) => {
-                    let mut values = &item.values;
-                    //特殊处理字段属性
-                    //- col.coltype
-                    //- col.dbname
-                    if selector.len() == 1 && item.kind == "column" && item.id.is_some() {
-                        let name = selector.next().unwrap();
-                        prefix = name.as_ref().to_owned();
-                        if name == "coltype" || name == "dbname" {
-                            let idx = item.id.unwrap() as usize;
-                            if idx > 0 && idx <= syn.table.columns.len() {
-                                values = &syn.table.columns[idx - 1].values;
-                            } else {
-                                return Err(NomErr::Error(make_error(
-                                    //SAFETY
-                                    unsafe { transmute(name.as_ref()) },
-                                    ErrorKind::Fail
-                                )));
-                            }
-                            //更名
-                            if name == "coltype" {
-                                prefix = "type".to_owned();
-                            }
-                        }
-                    }
-                    values
-                },
-                None => {
-                    return Err(NomErr::Error(make_error(
-                        //SAFETY
-                        unsafe { transmute(name.as_ref()) },
-                        ErrorKind::Fail
-                    )));
-                }
-            }
-        }
+    }
+    let root = match root {
+        Some(root) => root,
+        None => return Err(NomErr::Error(make_error(input, ErrorKind::Eof)))
     };
 
-    let selector = selector
+    let key = selector
         .fold(prefix, |mut result, item| {
             if !result.is_empty() {
                 result.push_str(".");
@@ -282,10 +349,10 @@ fn select<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, S
         })
         .into_key();
 
-    match values.get(&selector) {
-        Some(v) => Ok(SelectResult::Value(v)),
-        None => Ok(SelectResult::Map(values, selector))
-    }
+    Ok(SelectResult {
+        root,
+        key
+    })
 }
 
 /// 解析参数名
@@ -298,31 +365,31 @@ fn name(input: &str) -> ParseResult<&str> {
 /// 解析索引值
 fn index(input: &str) -> ParseResult<&str> { take_while1(|c: char| c.is_numeric())(input) }
 
-/// 查找指定`level`的分组`group`语法项
-fn find_group<'a, 'b: 'a>(items: &'a Vec<Item<'b>>, level: f64) -> Option<&'a Item<'b>> {
-    for item in items {
-        if item.kind == "group" {
-            if let Some(v) = item.values.get(&"level".into_key()) {
-                if let Value::Number(v) = v {
-                    if *v == level {
-                        return Some(item);
-                    }
-                }
+/// 查找指定`table`字段语法项
+fn find_table_column<'a, 'b: 'a>(
+    items: &'a Vec<ItemTableColumn<'b>>,
+    name: &str
+) -> Option<(usize, &'a ItemTableColumn<'b>)> {
+    for (index, item) in items.iter().enumerate() {
+        if let Some(v) = &item.name {
+            if *v == name {
+                return Some((index, item));
             }
         }
     }
     None
 }
 
-/// 查找指定`table`字段语法项
-fn find_table_column<'a, 'b: 'a>(
-    items: &'a Vec<ItemTableColumn<'b>>,
-    name: &str
-) -> Option<&'a ItemTableColumn<'b>> {
-    for item in items {
-        if let Some(v) = &item.name {
-            if *v == name {
-                return Some(item);
+/// 查找指定`level`的分组`group`语法项
+fn find_group<'a, 'b: 'a>(items: &'a Vec<Item<'b>>, level: f64) -> Option<(usize, &'a Item<'b>)> {
+    for (index, item) in items.iter().enumerate() {
+        if item.kind == "group" {
+            if let Some(v) = item.values.get(&"level".into_key()) {
+                if let Value::Number(v) = v {
+                    if *v == level {
+                        return Some((index, item));
+                    }
+                }
             }
         }
     }
@@ -330,14 +397,14 @@ fn find_table_column<'a, 'b: 'a>(
 }
 
 /// 查找普通语法项
-fn find_item<'a, 'b: 'a>(items: &'a Vec<Item<'b>>, name: &str) -> Option<&'a Item<'b>> {
+fn find_item<'a, 'b: 'a>(items: &'a Vec<Item<'b>>, name: &str) -> Option<(usize, &'a Item<'b>)> {
     //通过ID查找
     if name.starts_with("#") {
         if let Ok(id) = name[1..].parse() {
-            for item in items {
+            for (index, item) in items.iter().enumerate() {
                 if let Some(v) = item.id {
                     if v == id {
-                        return Some(item);
+                        return Some((index, item));
                     }
                 }
             }
@@ -345,10 +412,10 @@ fn find_item<'a, 'b: 'a>(items: &'a Vec<Item<'b>>, name: &str) -> Option<&'a Ite
     }
     //通过名称查找
     else {
-        for item in items {
+        for (index, item) in items.iter().enumerate() {
             if let Some(v) = &item.name {
                 if *v == name {
-                    return Some(item);
+                    return Some((index, item));
                 }
             }
         }

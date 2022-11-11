@@ -32,6 +32,22 @@ mod prelude {
     {
         fn into_key(self) -> Key<'a> { self.into() }
     }
+
+    pub trait CowExt<'a, T: ToOwned + ?Sized + 'a> {
+        fn borrowed(&self) -> Option<&'a T>;
+    }
+
+    impl<'a, T> CowExt<'a, T> for Cow<'a, T>
+    where
+        T: ToOwned + ?Sized + 'a
+    {
+        fn borrowed(&self) -> Option<&'a T> {
+            match self {
+                Cow::Borrowed(v) => Some(v),
+                _ => None
+            }
+        }
+    }
 }
 
 pub use ast::*;

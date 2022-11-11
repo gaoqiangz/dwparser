@@ -7,6 +7,17 @@ pub enum SumItem<'a> {
     ItemData(Vec<Value<'a>>)
 }
 
+impl<'a> SumItem<'a> {
+    /// 拷贝值并协变为目标生命期
+    pub(crate) fn to_owned<'r>(&self) -> SumItem<'r> {
+        match self {
+            SumItem::Item(item) => SumItem::Item(item.to_owned()),
+            SumItem::ItemTable(item) => SumItem::ItemTable(item.to_owned()),
+            SumItem::ItemData(item) => SumItem::ItemData(item.iter().map(|v| v.to_owned()).collect())
+        }
+    }
+}
+
 /// 语法项解析
 ///
 /// # Input

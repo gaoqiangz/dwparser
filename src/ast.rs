@@ -186,6 +186,22 @@ pub struct Item<'a> {
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
+impl<'a> Item<'a> {
+    /// 拷贝值并协变为目标生命期
+    pub(crate) fn to_owned<'r>(&self) -> Item<'r> {
+        Item {
+            kind: Cow::clone(&self.kind).into_owned().into_key(),
+            name: self.name.as_ref().map(|v| Cow::clone(v).into_owned().into_key()),
+            id: self.id,
+            values: self
+                .values
+                .iter()
+                .map(|(k, v)| (Cow::clone(k).into_owned().into_key(), v.to_owned()))
+                .collect()
+        }
+    }
+}
+
 impl<'a> Display for Item<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}({})", self.kind, MapDisplay(&self.values))?;
@@ -206,6 +222,18 @@ pub struct ItemTable<'a> {
 
 impl<'a> ItemTable<'a> {
     pub fn is_empty(&self) -> bool { self.columns.is_empty() && self.values.is_empty() }
+
+    /// 拷贝值并协变为目标生命期
+    pub(crate) fn to_owned<'r>(&self) -> ItemTable<'r> {
+        ItemTable {
+            columns: self.columns.iter().map(|v| v.to_owned()).collect(),
+            values: self
+                .values
+                .iter()
+                .map(|(k, v)| (Cow::clone(k).into_owned().into_key(), v.to_owned()))
+                .collect()
+        }
+    }
 }
 
 impl<'a> Display for ItemTable<'a> {
@@ -231,6 +259,19 @@ pub struct ItemTableColumn<'a> {
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
+impl<'a> ItemTableColumn<'a> {
+    /// 拷贝值并协变为目标生命期
+    pub(crate) fn to_owned<'r>(&self) -> ItemTableColumn<'r> {
+        ItemTableColumn {
+            name: self.name.as_ref().map(|v| Cow::clone(v).into_owned().into_key()),
+            values: self
+                .values
+                .iter()
+                .map(|(k, v)| (Cow::clone(k).into_owned().into_key(), v.to_owned()))
+                .collect()
+        }
+    }
+}
 impl<'a> Display for ItemTableColumn<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "column=({})", MapDisplay(&self.values))?;
