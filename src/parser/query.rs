@@ -33,10 +33,10 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
         Create(SumItem<'a>),
         Destroy(&'a str)
     }
+    fn key(input: &str) -> ParseResult<&str> {
+        take_while1(|c: char| c.is_alphanumeric() || c == '#' || c == '.' || c == '_')(input)
+    }
     fn assign(input: &str) -> ParseResult<ModifyKind> {
-        fn key(input: &str) -> ParseResult<&str> {
-            take_while1(|c: char| c.is_alphanumeric() || c == '#' || c == '.' || c == '_')(input)
-        }
         fn value(input: &str) -> ParseResult<Value> {
             cut(alt((value::string, value::literal, value::number, value::map, value::list, fail)))(input)
         }
@@ -58,7 +58,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
         #[cfg(not(feature = "case_insensitive"))]
         let (input, _) = tag("create")(input)?;
         let (input, _) = multispace1(input)?;
-        name.map(ModifyKind::Destroy).parse(input)
+        key.map(ModifyKind::Destroy).parse(input)
     }
     let (_, modifies) = terminated(
         preceded(
@@ -160,6 +160,7 @@ struct SelectResult<'a> {
 }
 
 /// 选取的语法项根元素
+#[derive(Debug)]
 enum SelectRoot {
     DataWindow,
     Header,
@@ -171,7 +172,7 @@ enum SelectRoot {
     ItemTableColumn(usize)
 }
 
-/// 选择指定语法项的参数项
+/// 选择指定语法项
 fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult<'a>> {
     let (_, selector) = terminated(
         preceded(multispace0, separated_list1(tag("."), alt((name, index)).map(IntoKey::into_key))),
@@ -193,8 +194,8 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
         let name = selector.next().unwrap();
         if name == "header" {
             root = Some(SelectRoot::Header);
-            //datawindow.header.<group #>.prop
-            if selector.len() >= 2 {
+            //datawindow.header.<group #>
+            if selector.len() >= 1 {
                 let name = selector.next().unwrap();
                 if let Ok(level) = name.parse() {
                     if let Some((index, _)) = find_group(&syn.items, level) {
@@ -211,8 +212,8 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
             }
         } else if name == "footer" {
             root = Some(SelectRoot::Footer);
-            //datawindow.footer.<group #>.prop
-            if selector.len() >= 2 {
+            //datawindow.footer.<group #>
+            if selector.len() >= 1 {
                 let name = selector.next().unwrap();
                 if let Ok(level) = name.parse() {
                     if let Some((index, _)) = find_group(&syn.items, level) {
@@ -229,8 +230,8 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
             }
         } else if name == "trailer" {
             let mut found = false;
-            //datawindow.trailer.<group #>.prop
-            if selector.len() >= 2 {
+            //datawindow.trailer.<group #>
+            if selector.len() >= 1 {
                 if let Ok(level) = selector.next().unwrap().parse() {
                     if let Some((index, _)) = find_group(&syn.items, level) {
                         root = Some(SelectRoot::Item(index));
@@ -248,8 +249,8 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
             }
         } else if name == "group" {
             let mut found = false;
-            //datawindow.group.<group #>.prop
-            if selector.len() >= 2 {
+            //datawindow.group.<group #>
+            if selector.len() >= 1 {
                 if let Ok(level) = selector.next().unwrap().parse() {
                     if let Some((index, _)) = find_group(&syn.items, level) {
                         root = Some(SelectRoot::Item(index));
@@ -270,9 +271,9 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
             root = Some(SelectRoot::Detail);
         } else if name == "table" {
             root = Some(SelectRoot::ItemTable);
-            //- datawindow.table.column.<column #>.prop
-            //- datawindow.table.column.<column name>.prop
-            if selector.len() >= 3 {
+            //- datawindow.table.column.<column #>
+            //- datawindow.table.column.<column name>
+            if selector.len() >= 2 {
                 let name = selector.next().unwrap();
                 if name == "column" {
                     let name = selector.next().unwrap();
