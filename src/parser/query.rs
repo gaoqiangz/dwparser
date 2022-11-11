@@ -5,13 +5,13 @@ use super::*;
 /// 兼容`DataWindow::Describe`参数
 pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, Option<&'a Value<'b>>> {
     let SelectResult {
-        root: container,
+        root,
         key
     } = select(syn, input)?;
     if key.is_empty() {
         return Ok(None);
     }
-    let values = match container {
+    let values = match root {
         SelectRoot::DataWindow => &syn.datawindow,
         SelectRoot::Header => &syn.header,
         SelectRoot::Summary => &syn.summary,
