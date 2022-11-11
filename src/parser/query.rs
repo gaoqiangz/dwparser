@@ -178,7 +178,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
         preceded(multispace0, separated_list1(tag("."), alt((name, index)).map(IntoKey::into_key))),
         terminated(multispace0, eof)
     )(input)?;
-    if selector.len() < 1 {
+    if selector.len() == 0 {
         return Err(NomErr::Error(make_error(input, ErrorKind::Eof)));
     }
     let mut selector = selector.into_iter();
@@ -191,6 +191,9 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
     if name == "datawindow" {
         //TODO
         //- tree
+        if selector.len() == 0 {
+            return Err(NomErr::Error(make_error(input, ErrorKind::Eof)));
+        }
         let name = selector.next().unwrap();
         if name == "header" {
             root = Some(SelectRoot::Header);
@@ -208,6 +211,8 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                             ErrorKind::Fail
                         )));
                     }
+                } else {
+                    prefix = name.as_ref().to_owned();
                 }
             }
         } else if name == "footer" {
@@ -226,6 +231,8 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                             ErrorKind::Fail
                         )));
                     }
+                } else {
+                    prefix = name.as_ref().to_owned();
                 }
             }
         } else if name == "trailer" {
@@ -289,7 +296,15 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                         }
                     } else if let Some((index, _)) = find_table_column(&syn.table.columns, name.as_ref()) {
                         root = Some(SelectRoot::ItemTableColumn(index));
+                    } else {
+                        return Err(NomErr::Error(make_error(
+                            //SAFETY
+                            name.borrowed().unwrap(),
+                            ErrorKind::Fail
+                        )));
                     }
+                } else {
+                    prefix = name.as_ref().to_owned();
                 }
             }
         } else {
