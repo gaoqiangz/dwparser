@@ -576,7 +576,7 @@ mod tests {
         ";
         #[cfg(not(feature = "case_insensitive"))]
         let modifier =
-            "datawindow.num=12345;DataWindow.Num=12345;col1.dbname='test';datawindow.group.1.level=100";
+            "datawindow.num=12345;datawindow.num=12345;col1.dbname='test';datawindow.group.1.level=100";
         check_result(modifier, modify(&mut dw, modifier));
 
         #[cfg(feature = "case_insensitive")]
