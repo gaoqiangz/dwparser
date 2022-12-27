@@ -86,9 +86,23 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                     SelectRoot::Summary => &mut syn.summary,
                     SelectRoot::Footer => &mut syn.footer,
                     SelectRoot::Detail => &mut syn.detail,
-                    SelectRoot::Item(index) => &mut syn.items[index].values,
+                    SelectRoot::Item(index) => {
+                        if key == "name" {
+                            syn.items[index].name =
+                                value.as_literal().map(|v| Cow::clone(v).into_owned().into_key());
+                        } else if key == "id" {
+                            syn.items[index].id = value.as_number().map(|v| v as u32);
+                        }
+                        &mut syn.items[index].values
+                    },
                     SelectRoot::ItemTable => &mut syn.table.values,
-                    SelectRoot::ItemTableColumn(index) => &mut syn.table.columns[index].values
+                    SelectRoot::ItemTableColumn(index) => {
+                        if key == "name" {
+                            syn.table.columns[index].name =
+                                value.as_literal().map(|v| Cow::clone(v).into_owned().into_key());
+                        }
+                        &mut syn.table.columns[index].values
+                    }
                 };
                 values.insert(key, value.to_owned());
             },
