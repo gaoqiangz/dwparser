@@ -1,8 +1,11 @@
 use crate::{parser, prelude::*};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 
 /// DataWindow语法结构
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DWSyntax<'a> {
     /// `.srd`文件对象名
     ///
@@ -179,6 +182,7 @@ impl<'a> Display for DWSyntax<'a> {
 /// item(name=name key=value key=value)
 /// ```
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Item<'a> {
     pub kind: Key<'a>,
     pub name: Option<Key<'a>>,
@@ -215,6 +219,7 @@ impl<'a> Display for Item<'a> {
 /// table(column=(type=type) column=(type=type) key=value key=value)
 /// ```
 #[derive(Debug, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ItemTable<'a> {
     pub columns: Vec<ItemTableColumn<'a>>,
     pub values: HashMap<Key<'a>, Value<'a>>
@@ -254,6 +259,7 @@ impl<'a> Display for ItemTable<'a> {
 /// column=(name=name key=value)
 /// ```
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ItemTableColumn<'a> {
     pub name: Option<Key<'a>>,
     pub values: HashMap<Key<'a>, Value<'a>>
@@ -281,31 +287,38 @@ impl<'a> Display for ItemTableColumn<'a> {
 
 /// 参数值
 #[derive(Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Value<'a> {
     /// 字面值
     ///
     /// `literal`
+    #[cfg_attr(feature = "serde", serde(rename = "lit"))]
     Literal(Cow<'a, str>),
     /// 双引号字符串
     ///
     /// `"abcd"`
+    #[cfg_attr(feature = "serde", serde(rename = "dqt_str"))]
     DoubleQuotedString(Cow<'a, str>),
     /// 单引号字符串
     ///
     /// `'abcd'`
+    #[cfg_attr(feature = "serde", serde(rename = "sqt_str"))]
     SingleQuotedString(Cow<'a, str>),
     /// 数值
     ///
     /// `12345`
+    #[cfg_attr(feature = "serde", serde(rename = "number"))]
     Number(f64),
     /// Key-Value值列表
     ///
     /// `(key=value key=value)`
+    #[cfg_attr(feature = "serde", serde(rename = "map"))]
     Map(HashMap<Key<'a>, Value<'a>>),
     /// 多值列表
     ///
     /// - `("abcd", "abcd")`
     /// - `(("abcd", abcd))`
+    #[cfg_attr(feature = "serde", serde(rename = "list"))]
     List(Vec<Value<'a>>)
 }
 

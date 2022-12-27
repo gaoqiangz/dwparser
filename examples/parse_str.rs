@@ -1,3 +1,5 @@
+#![allow(unused_mut)]
+
 use dwparser::DWSyntax;
 
 fn main() {
@@ -17,6 +19,8 @@ fn main() {
         "#;
     let mut dw = DWSyntax::parse(dwsyn).unwrap();
     println!("\r\nAST:\r\n{:#?}", dw);
+    #[cfg(feature = "serde_support")]
+    println!("\r\nAST_JSON:\r\n{}", serde_json::to_string_pretty(&dw).unwrap());
 
     #[cfg(feature = "query")]
     {
