@@ -199,7 +199,7 @@ fn main() {
         }
     ]
     }"#;
-    let dw = serde_json::from_str::<DWSyntax>(syn_json).unwrap();
+    let dw = serde_json::from_str::<DWSyntax>(&syn_json).unwrap();
     println!("\r\nAST:\r\n{:#?}", dw);
 
     println!("\r\nToString:\r\n{}", dw);

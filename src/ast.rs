@@ -14,6 +14,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// $PBExportHeader$name.srd
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub name: Option<Cow<'a, str>>,
     /// `.srd`文件备注
     ///
@@ -22,6 +23,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// $PBExportComments$comment
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub comment: Option<Cow<'a, str>>,
     /// 语法版本
     ///
@@ -38,6 +40,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// datawindow(key=value key=value)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub datawindow: HashMap<Key<'a>, Value<'a>>,
     /// `header`语法项
     ///
@@ -46,6 +49,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// header(key=value key=value)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub header: HashMap<Key<'a>, Value<'a>>,
     /// `summary`语法项
     ///
@@ -54,6 +58,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// summary(key=value key=value)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub summary: HashMap<Key<'a>, Value<'a>>,
     /// `footer`语法项
     ///
@@ -62,6 +67,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// footer(key=value key=value)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub footer: HashMap<Key<'a>, Value<'a>>,
     /// `detail`语法项
     ///
@@ -70,6 +76,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// detail(key=value key=value)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub detail: HashMap<Key<'a>, Value<'a>>,
     /// `table`语法项
     ///
@@ -78,6 +85,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// table(column=(type=type) column=(type=type) key=value key=value)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub table: ItemTable<'a>,
     /// `data`项
     ///
@@ -86,6 +94,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// data(0,1,2)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub data: Vec<Value<'a>>,
     /// 普通语法项
     ///
@@ -95,6 +104,7 @@ pub struct DWSyntax<'a> {
     /// text(key=value)
     /// compute(key=value key=value)
     /// ```
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub items: Vec<Item<'a>>
 }
 
@@ -184,9 +194,12 @@ impl<'a> Display for DWSyntax<'a> {
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Item<'a> {
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub kind: Key<'a>,
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub name: Option<Key<'a>>,
     pub id: Option<u32>,
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
@@ -221,7 +234,9 @@ impl<'a> Display for Item<'a> {
 #[derive(Debug, PartialEq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ItemTable<'a> {
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub columns: Vec<ItemTableColumn<'a>>,
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
@@ -261,7 +276,9 @@ impl<'a> Display for ItemTable<'a> {
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ItemTableColumn<'a> {
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub name: Option<Key<'a>>,
+    #[cfg_attr(feature = "serde", serde(borrow))]
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
@@ -278,6 +295,7 @@ impl<'a> ItemTableColumn<'a> {
         }
     }
 }
+
 impl<'a> Display for ItemTableColumn<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "column=({})", MapDisplay(&self.values))?;
