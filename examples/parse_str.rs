@@ -16,6 +16,9 @@ fn main() {
         )group(level=1   header.height=100  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))
         line(band=foreground x1="0")
         compute(name=compute_1 band=trailer.5 alignment="2" expression="count(jw_no for group 5 )+~"件~""border="0"  )
+        column(name=col1 id=1 alignment="2" )
+        column(name=col2 id=2 alignment="2" )
+        column(name=col3 id=3 alignment="2" )
         "#;
     let mut dw = DWSyntax::parse(dwsyn).unwrap();
     println!("\r\nAST:\r\n{:#?}", dw);
@@ -33,6 +36,8 @@ fn main() {
         println!("datawindow.table.column.1.type: {}", dw.describe("datawindow.table.column.1.type"));
         println!("datawindow.table.column.col2.type: {}", dw.describe("datawindow.table.column.col2.type"));
         println!("compute_1.expression: {}", dw.describe("compute_1.expression"));
+        println!("datawindow.column.count: {}", dw.describe("datawindow.column.count"));
+        println!("datawindow.objects: {}", dw.describe("datawindow.objects"));
 
         //modify
         dw.modify("datawindow.color='red'");
@@ -40,7 +45,7 @@ fn main() {
         dw.modify("datawindow.table.column.col1.type=long");
         dw.modify("datawindow.group.1.prop='test prop'");
         dw.modify("compute_1.expression='getrow()'");
-        dw.modify("destroy compute_1 destroy datawindow.table.column.col2");
+        dw.modify("destroy compute_1 destroy datawindow.table.column.col1");
         dw.modify(r#"create compute(name=compute_2 level=2 band=trailer.5 alignment="2"   )"#);
     }
 

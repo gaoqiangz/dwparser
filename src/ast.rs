@@ -119,12 +119,29 @@ impl<'a> DWSyntax<'a> {
     /// 兼容`DataWindow::Describe`参数和返回值
     #[cfg(feature = "query")]
     pub fn describe(&self, selector: &str) -> String {
-        match parser::query::describe(self, selector) {
-            Ok(Some(v)) => {
-                //TODO
-                v.to_string()
+        match parser::query::find(self, selector) {
+            Ok(Some(v)) => v.to_string(),
+            Ok(None) => {
+                #[cfg(feature = "case_insensitive")]
+                let selector = selector.to_ascii_lowercase();
+                match selector.trim() {
+                    "datawindow.column.count" => self.table.columns.len().to_string(),
+                    "datawindow.syntax" => self.to_string(),
+                    "datawindow.objects" => {
+                        let mut objects = String::with_capacity(self.items.len() * 20);
+                        for item in &self.items {
+                            if let Some(name) = &item.name {
+                                if !objects.is_empty() {
+                                    objects += "\t";
+                                }
+                                objects += name;
+                            }
+                        }
+                        objects
+                    },
+                    _ => "?".to_owned()
+                }
             },
-            Ok(None) => "?".to_owned(),
             Err(_) => "!".to_owned()
         }
     }
@@ -134,7 +151,7 @@ impl<'a> DWSyntax<'a> {
     /// 兼容`DataWindow::Describe`参数
     #[cfg(feature = "query")]
     pub fn describe_value<'b>(&'b self, selector: &str) -> Result<Option<&'b Value<'a>>, String> {
-        parser::query::describe(self, selector).map_err(|e| parser::friendly_error(selector, e))
+        parser::query::find(self, selector).map_err(|e| parser::friendly_error(selector, e))
     }
 
     /// 修改语法项的参数值
@@ -419,8 +436,28 @@ impl<'a> Display for Value<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Literal(v) => write!(f, "{v}"),
-            Value::DoubleQuotedString(v) => write!(f, "\"{v}\""),
-            Value::SingleQuotedString(v) => write!(f, "'{v}'"),
+            Value::DoubleQuotedString(v) => {
+                if f.alternate() || v.contains(&['\r', '\n', '\t']) {
+                    write!(f, "\"{v}\"")
+                } else {
+                    if v.contains("~") {
+                        write!(f, "{}", v.replace("~\"", "\"").replace("~~", "~"))
+                    } else {
+                        write!(f, "{v}")
+                    }
+                }
+            },
+            Value::SingleQuotedString(v) => {
+                if f.alternate() || v.contains(&['\r', '\n', '\t']) {
+                    write!(f, "'{v}'")
+                } else {
+                    if v.contains("~") {
+                        write!(f, "{}", v.replace("~'", "'").replace("~~", "~"))
+                    } else {
+                        write!(f, "{v}")
+                    }
+                }
+            },
             Value::Number(v) => write!(f, "{v}"),
             Value::Map(v) => write!(f, "({})", MapDisplay(&v)),
             Value::List(v) => write!(f, "({})", ListDisplay(&v))
@@ -435,9 +472,9 @@ impl<'a> Display for MapDisplay<'a> {
         let mut first = true;
         for (key, value) in self.0 {
             if first {
-                write!(f, "{key}={value}")?;
+                write!(f, "{key}={value:#}")?;
             } else {
-                write!(f, " {key}={value}")?;
+                write!(f, " {key}={value:#}")?;
             }
             first = false;
         }
@@ -452,9 +489,9 @@ impl<'a> Display for ListDisplay<'a> {
         let mut first = true;
         for value in self.0 {
             if first {
-                write!(f, "{value}")?;
+                write!(f, "{value:#}")?;
             } else {
-                write!(f, ", {value}")?;
+                write!(f, ", {value:#}")?;
             }
             first = false;
         }
@@ -476,7 +513,7 @@ impl<'a> Display for DataDisplay<'a> {
                     }
                 },
                 _ => {
-                    write!(f, "{value}, ")?;
+                    write!(f, "{value:#}, ")?;
                 }
             }
         }

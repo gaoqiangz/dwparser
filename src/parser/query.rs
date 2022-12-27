@@ -1,9 +1,9 @@
 use super::*;
 
-/// 获取指定语法项的参数值
+/// 查找指定语法项的参数值
 ///
 /// 兼容`DataWindow::Describe`参数
-pub fn describe<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, Option<&'a Value<'b>>> {
+pub fn find<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, Option<&'a Value<'b>>> {
     let SelectResult {
         root,
         key
@@ -159,6 +159,26 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                     },
                     SelectRoot::ItemTableColumn(index) => {
                         syn.table.columns.remove(index);
+                        //删除引用的字段控件并刷新ID
+                        let mut i = syn.items.len();
+                        while i > 0 {
+                            i -= 1;
+                            let item = &mut syn.items[i];
+                            if item.kind == "column" {
+                                if let Some(id) = item.id {
+                                    //删除控件
+                                    if id as usize == index + 1 {
+                                        drop(item);
+                                        syn.items.remove(i);
+                                    }
+                                    //刷新ID
+                                    else if id as usize > index + 1 {
+                                        item.id = Some(id - 1);
+                                        item.values.insert("id".into_key(), Value::Number((id - 1) as f64));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
