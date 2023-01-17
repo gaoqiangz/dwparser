@@ -1,6 +1,6 @@
 [package]
 name = "dwparser"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["gaoqiangz <gaoqiangz@msn.com>"]
 keywords = ["pb", "powerbuilder", "datawindow", "dw", "parser"]

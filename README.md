@@ -55,9 +55,9 @@ dwsyn.modify("DataWindow.Processing = 2");
 ```ignore
 let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
 //通过字段名
-dwsyn.modify("DataWindow.Table.Column.ColA.ColType = 'char(255)'");
+dwsyn.modify("DataWindow.Table.Column.ColA.ColType = char(255)");
 //通过ID
-dwsyn.modify("DataWindow.Table.Column.1.ColType = 'char(255)'");
+dwsyn.modify("DataWindow.Table.Column.1.ColType = char(255)");
 ```
 
 - 删除字段
