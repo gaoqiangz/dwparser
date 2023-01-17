@@ -44,14 +44,14 @@ dwparser = "0.1.0"
 
 - 修改`processing`
 
-```rust
+```ignore
 let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
 dwsyn.modify("DataWindow.Processing = 2");
 ```
 
 - 修改字段类型
 
-```rust
+```ignore
 let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
 //通过字段名
 dwsyn.modify("DataWindow.Table.Column.ColA.ColType = 'char(255)'");
@@ -61,7 +61,7 @@ dwsyn.modify("DataWindow.Table.Column.1.ColType = 'char(255)'");
 
 - 删除字段
 
-```rust
+```ignore
 let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
 //通过字段名
 dwsyn.modify("Destroy DataWindow.Table.Column.ColA");
@@ -71,7 +71,7 @@ dwsyn.modify("Destroy DataWindow.Table.Column.1");
 
 - 删除分组
 
-```rust
+```ignore
 let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
 dwsyn.modify("Destroy DataWindow.Footer.1");
 ```

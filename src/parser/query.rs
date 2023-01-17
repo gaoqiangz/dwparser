@@ -499,28 +499,28 @@ mod tests {
         let key = "DataWindow.Header.Num";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.header.num";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::Number(564.0)));
 
         #[cfg(feature = "case_insensitive")]
         let key = "DataWindow.Lit";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.lit";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::Literal("yes".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "DataWindow.Trailer.1.Height";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.trailer.1.height";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::Number(76.0)));
 
         #[cfg(feature = "case_insensitive")]
         let key = "DataWindow.Group.2.By";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.group.2.by";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(
             value,
             Some(&Value::List(vec![
@@ -533,56 +533,56 @@ mod tests {
         let key = "DataWindow.Table.Column.1.Type";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.table.column.1.type";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::Literal("char(80  )".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "DataWindow.Table.Column.Col1.DBName";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.table.column.col1.dbname";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::DoubleQuotedString("col1".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "DataWindow.Table.Retrieve";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.table.retrieve";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::DoubleQuotedString("SQL\n        CLAUSE ".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "Col1.color";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "col1.color";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::DoubleQuotedString("33554432".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "#1.Name";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "#1.name";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::Literal("col1".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "col1.DBName";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "col1.dbname";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::DoubleQuotedString("col1".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "col1.ColType";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "col1.coltype";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::Literal("char(80  )".into())));
 
         #[cfg(feature = "case_insensitive")]
         let key = "Compute_1.Expression";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "compute_1.expression";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::DoubleQuotedString("count(jw_no for group 5 )+~\"件~\"".into())));
     }
 
@@ -617,7 +617,7 @@ mod tests {
         let key = "DataWindow.Num";
         #[cfg(not(feature = "case_insensitive"))]
         let key = "datawindow.num";
-        let value = check_result(key, describe(&dw, key));
+        let value = check_result(key, find(&dw, key));
         assert_eq!(value, Some(&Value::Number(12345.0)));
 
         //println!("{dw}");
