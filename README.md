@@ -21,17 +21,6 @@ DataWindow Syntax Parser written in Rust
 | `serde_support`         | 支持`serde`序列化接口                      | `false`  |
 | `full`         | 开启所有特性                      | `false`  |
 
-# 示例
-
-- 修改`processing`
-
-```rust
-use dwparser;
-
-
-
-```
-
 # 环境要求
 
 - rustc: 最低1.54 **(支持stable)**
@@ -39,6 +28,7 @@ use dwparser;
 # 开始使用
 
 - `cargo add`
+
 ```bash
 > cargo add dwparser
 ```
@@ -48,4 +38,40 @@ use dwparser;
 ```toml
 [dependencies]
 dwparser = "0.1.0"
+```
+
+# 示例
+
+- 修改`processing`
+
+```rust
+let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
+dwsyn.modify("DataWindow.Processing = 2");
+```
+
+- 修改字段类型
+
+```rust
+let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
+//通过字段名
+dwsyn.modify("DataWindow.Table.Column.ColA.ColType = 'char(255)'");
+//通过ID
+dwsyn.modify("DataWindow.Table.Column.1.ColType = 'char(255)'");
+```
+
+- 删除字段
+
+```rust
+let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
+//通过字段名
+dwsyn.modify("Destroy DataWindow.Table.Column.ColA");
+//通过ID
+dwsyn.modify("Destroy DataWindow.Table.Column.1");
+```
+
+- 删除分组
+
+```rust
+let mut dwsyn = dwparser::parse("{DataWindow Syntax}").unwrap();
+dwsyn.modify("Destroy DataWindow.Footer.1");
 ```
