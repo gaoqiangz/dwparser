@@ -1,7 +1,8 @@
 # dwparser
 [![github](https://img.shields.io/badge/github-8da0cb?style=for-the-badge&labelColor=555555&logo=github)](https://github.com/gaoqiangz/dwparser) <br>
-[![crates.io](https://meritbadge.herokuapp.com/dwparser)](https://crates.io/crates/dwparser)
+[![crates.io](https://img.shields.io/crates/d/dwparser?label=crates.io)](https://crates.io/crates/dwparser)
 [![docs.rs](https://docs.rs/dwparser/badge.svg)](https://docs.rs/dwparser)
+[![version](https://img.shields.io/badge/rustc-1.54+-ab6000.svg)](https://blog.rust-lang.org/2021/07/29/Rust-1.54.0.html)
 ![BSD-2-Clause licensed](https://img.shields.io/crates/l/dwparser.svg)
 
 DataWindow Syntax Parser written in Rust
