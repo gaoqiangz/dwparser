@@ -6,7 +6,7 @@ use super::*;
 pub fn find<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c, Option<&'a Value<'b>>> {
     let SelectResult {
         root,
-        key
+        key,
     } = select(syn, input)?;
     if key.is_empty() {
         return Ok(None);
@@ -19,7 +19,7 @@ pub fn find<'a, 'b: 'a, 'c>(syn: &'a DWSyntax<'b>, input: &'c str) -> Result<'c,
         SelectRoot::Detail => &syn.detail,
         SelectRoot::Item(index) => &syn.items[index].values,
         SelectRoot::ItemTable => &syn.table.values,
-        SelectRoot::ItemTableColumn(index) => &syn.table.columns[index].values
+        SelectRoot::ItemTableColumn(index) => &syn.table.columns[index].values,
     };
     Ok(values.get(&key))
 }
@@ -31,7 +31,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
     enum ModifyKind<'a> {
         Assign(&'a str, Value<'a>),
         Create(SumItem<'a>),
-        Destroy(&'a str)
+        Destroy(&'a str),
     }
     fn key(input: &str) -> ParseResult<&str> {
         take_while1(|c: char| c.is_alphanumeric() || c == '#' || c == '.' || c == '_')(input)
@@ -65,17 +65,17 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
             multispace0,
             separated_list1(
                 alt((delimited(multispace0, tag(";"), multispace0), multispace1)),
-                alt((assign, create, destroy, fail))
-            )
+                alt((assign, create, destroy, fail)),
+            ),
         ),
-        terminated(delimited(multispace0, opt(tag(";")), multispace0), eof)
+        terminated(delimited(multispace0, opt(tag(";")), multispace0), eof),
     )(input)?;
     for kind in modifies {
         match kind {
             ModifyKind::Assign(selector, value) => {
                 let SelectResult {
                     root,
-                    key
+                    key,
                 } = select(syn, selector)?;
                 if key.is_empty() {
                     return Err(NomErr::Error(make_error(selector, ErrorKind::Fail)));
@@ -102,7 +102,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                                 value.as_literal().map(|v| Cow::clone(v).into_owned().into_key());
                         }
                         &mut syn.table.columns[index].values
-                    }
+                    },
                 };
                 values.insert(key, value.to_owned());
             },
@@ -122,8 +122,8 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                             syn.detail = new_item.values;
                         } else {
                             for item in &mut syn.items {
-                                if item.kind == new_item.kind &&
-                                    (item.name == new_item.name || item.id == new_item.id)
+                                if item.kind == new_item.kind
+                                    && (item.name == new_item.name || item.id == new_item.id)
                                 {
                                     *item = new_item;
                                     return Ok(());
@@ -133,13 +133,13 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                         }
                     },
                     SumItem::ItemData(new_item) => syn.data = new_item,
-                    SumItem::ItemTable(new_item) => syn.table = new_item
+                    SumItem::ItemTable(new_item) => syn.table = new_item,
                 }
             },
             ModifyKind::Destroy(name) => {
                 let SelectResult {
                     root,
-                    key
+                    key,
                 } = select(syn, name)?;
                 if !key.is_empty() {
                     return Err(NomErr::Error(make_error(name, ErrorKind::Fail)));
@@ -168,6 +168,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                                 if let Some(id) = item.id {
                                     //删除控件
                                     if id as usize == index + 1 {
+                                        #[allow(dropping_references)]
                                         drop(item);
                                         syn.items.remove(i);
                                     }
@@ -179,9 +180,9 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                                 }
                             }
                         }
-                    }
+                    },
                 }
-            }
+            },
         }
     }
     Ok(())
@@ -190,7 +191,7 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
 /// 选取结果
 struct SelectResult<'a> {
     root: SelectRoot,
-    key: Key<'a>
+    key: Key<'a>,
 }
 
 /// 选取的语法项根元素
@@ -203,14 +204,14 @@ enum SelectRoot {
     Detail,
     Item(usize),
     ItemTable,
-    ItemTableColumn(usize)
+    ItemTableColumn(usize),
 }
 
 /// 选择指定语法项
 fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult<'a>> {
     let (_, selector) = terminated(
         preceded(multispace0, separated_list1(tag("."), alt((name, index)).map(IntoKey::into_key))),
-        terminated(multispace0, eof)
+        terminated(multispace0, eof),
     )(input)?;
     if selector.len() == 0 {
         return Err(NomErr::Error(make_error(input, ErrorKind::Eof)));
@@ -242,7 +243,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                         return Err(NomErr::Error(make_error(
                             //SAFETY
                             name.borrowed().unwrap(),
-                            ErrorKind::Fail
+                            ErrorKind::Fail,
                         )));
                     }
                 } else {
@@ -262,7 +263,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                         return Err(NomErr::Error(make_error(
                             //SAFETY
                             name.borrowed().unwrap(),
-                            ErrorKind::Fail
+                            ErrorKind::Fail,
                         )));
                     }
                 } else {
@@ -285,7 +286,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                 return Err(NomErr::Error(make_error(
                     //SAFETY
                     name.borrowed().unwrap(),
-                    ErrorKind::Fail
+                    ErrorKind::Fail,
                 )));
             }
         } else if name == "group" {
@@ -303,7 +304,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                 return Err(NomErr::Error(make_error(
                     //SAFETY
                     name.borrowed().unwrap(),
-                    ErrorKind::Fail
+                    ErrorKind::Fail,
                 )));
             }
         } else if name == "summary" {
@@ -325,7 +326,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                             return Err(NomErr::Error(make_error(
                                 //SAFETY
                                 name.borrowed().unwrap(),
-                                ErrorKind::Fail
+                                ErrorKind::Fail,
                             )));
                         }
                     } else if let Some((index, _)) = find_table_column(&syn.table.columns, name.as_ref()) {
@@ -334,7 +335,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                         return Err(NomErr::Error(make_error(
                             //SAFETY
                             name.borrowed().unwrap(),
-                            ErrorKind::Fail
+                            ErrorKind::Fail,
                         )));
                     }
                 } else {
@@ -365,7 +366,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                             return Err(NomErr::Error(make_error(
                                 //SAFETY
                                 name.borrowed().unwrap(),
-                                ErrorKind::Fail
+                                ErrorKind::Fail,
                             )));
                         }
                         //alias
@@ -379,14 +380,14 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
                 return Err(NomErr::Error(make_error(
                     //SAFETY
                     name.borrowed().unwrap(),
-                    ErrorKind::Fail
+                    ErrorKind::Fail,
                 )));
-            }
+            },
         }
     }
     let root = match root {
         Some(root) => root,
-        None => return Err(NomErr::Error(make_error(input, ErrorKind::Eof)))
+        None => return Err(NomErr::Error(make_error(input, ErrorKind::Eof))),
     };
 
     let key = selector
@@ -401,7 +402,7 @@ fn select<'a, 'b>(syn: &DWSyntax<'a>, input: &'b str) -> Result<'b, SelectResult
 
     Ok(SelectResult {
         root,
-        key
+        key,
     })
 }
 
@@ -413,12 +414,14 @@ fn name(input: &str) -> ParseResult<&str> {
 }
 
 /// 解析索引值
-fn index(input: &str) -> ParseResult<&str> { take_while1(|c: char| c.is_numeric())(input) }
+fn index(input: &str) -> ParseResult<&str> {
+    take_while1(|c: char| c.is_numeric())(input)
+}
 
 /// 查找指定`table`字段语法项
 fn find_table_column<'a, 'b: 'a>(
     items: &'a Vec<ItemTableColumn<'b>>,
-    name: &str
+    name: &str,
 ) -> Option<(usize, &'a ItemTableColumn<'b>)> {
     for (index, item) in items.iter().enumerate() {
         if let Some(v) = &item.name {
@@ -476,7 +479,8 @@ fn find_item<'a, 'b: 'a>(items: &'a Vec<Item<'b>>, name: &str) -> Option<(usize,
 #[cfg(test)]
 mod tests {
     use super::{
-        super::tests::{check_result, test_parser}, *
+        super::tests::{check_result, test_parser},
+        *,
     };
 
     #[test]
