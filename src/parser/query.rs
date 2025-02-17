@@ -123,7 +123,8 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                         } else {
                             for item in &mut syn.items {
                                 if item.kind == new_item.kind &&
-                                    (item.name == new_item.name || item.id == new_item.id)
+                                    (item.name == new_item.name || item.id == new_item.id) &&
+                                    item.level == new_item.level
                                 {
                                     *item = new_item;
                                     return Ok(());

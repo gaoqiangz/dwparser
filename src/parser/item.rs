@@ -55,12 +55,14 @@ fn normal<'a>(kind: Key<'a>, input: &'a str) -> ParseResult<'a, SumItem<'a>> {
     let (input, values) = value_map(input)?;
     let name = values.get(&"name".into_key()).and_then(|v| v.as_literal()).map(|v| v.clone().into_key());
     let id = values.get(&"id".into_key()).and_then(|v| v.as_number()).map(|v| v as u32);
+    let level = values.get(&"level".into_key()).and_then(|v| v.as_number()).map(|v| v as u32);
     Ok((
         input,
         SumItem::Item(Item {
             kind,
             name,
             id,
+            level,
             values
         })
     ))
@@ -202,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_item() {
-        let (input, output) = test_parser("group(key=value key2=132 key3='abc~'123\"')", item);
+        let (input, output) = test_parser("group(level=1 key=value key2=132 key3='abc~'123\"')", item);
         assert_eq!(input, "");
         assert_eq!(
             output,
@@ -210,7 +212,9 @@ mod tests {
                 kind: "group".into_key(),
                 name: None,
                 id: None,
+                level: Some(1),
                 values: HashMap::from([
+                    ("level".into_key(), Value::Number(1.)),
                     ("key".into_key(), Value::Literal("value".into())),
                     ("key2".into_key(), Value::Number(132.)),
                     ("key3".into_key(), Value::SingleQuotedString("abc~'123\"".into())),

@@ -1,6 +1,6 @@
 use crate::{ast::*, prelude::*};
 use nom::{
-    branch::*, bytes::complete::*, character::complete::*, combinator::*, error::{context, convert_error, make_error, ErrorKind, VerboseError}, multi::*, number::complete::*, sequence::*, Err as NomErr, IResult, Parser
+    Err as NomErr, IResult, Parser, branch::*, bytes::complete::*, character::complete::*, combinator::*, error::{ErrorKind, VerboseError, context, convert_error, make_error}, multi::*, number::complete::*, sequence::*
 };
 
 mod item;
@@ -8,7 +8,7 @@ mod value;
 #[cfg(feature = "query")]
 pub mod query;
 
-use item::{item, SumItem};
+use item::{SumItem, item};
 
 pub type Error<'a> = NomErr<VerboseError<&'a str>>;
 pub type Result<'a, T> = ::std::result::Result<T, Error<'a>>;
@@ -359,6 +359,7 @@ mod tests {
                     kind: "group".into_key(),
                     name: None,
                     id: None,
+                    level: Some(1),
                     values: HashMap::from([
                         ("level".into_key(), Value::Number(1.)),
                         ("trailer.height".into_key(), Value::Number(76.)),
@@ -375,6 +376,7 @@ mod tests {
                     kind: "compute".into_key(),
                     name: Some("compute_1".into_key()),
                     id: None,
+                    level: None,
                     values: HashMap::from([
                         ("band".into_key(), Value::Literal("trailer.5".into())),
                         ("alignment".into_key(), Value::DoubleQuotedString("2".into())),

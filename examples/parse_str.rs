@@ -47,6 +47,9 @@ fn main() {
         dw.modify("compute_1.expression='getrow()'");
         dw.modify("destroy compute_1 destroy datawindow.table.column.col1");
         dw.modify(r#"create compute(name=compute_2 level=2 band=trailer.5 alignment="2"   )"#);
+        dw.modify(r#"create group(level=1   header.height=3232332  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))"#);
+        dw.modify(r#"create group(level=2   header.height=322  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))"#);
+        dw.modify(r#"create group(level=3   header.height=244  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))"#);
     }
 
     println!("\r\nToString:\r\n{}", dw);

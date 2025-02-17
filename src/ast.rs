@@ -216,6 +216,7 @@ pub struct Item<'a> {
     #[cfg_attr(feature = "serde", serde(borrow))]
     pub name: Option<Key<'a>>,
     pub id: Option<u32>,
+    pub level: Option<u32>,
     #[cfg_attr(feature = "serde", serde(borrow))]
     pub values: HashMap<Key<'a>, Value<'a>>
 }
@@ -227,6 +228,7 @@ impl<'a> Item<'a> {
             kind: Cow::clone(&self.kind).into_owned().into_key(),
             name: self.name.as_ref().map(|v| Cow::clone(v).into_owned().into_key()),
             id: self.id,
+            level: self.level,
             values: self
                 .values
                 .iter()
