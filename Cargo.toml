@@ -1,15 +1,22 @@
 [package]
 name = "dwparser"
-version = "0.1.1"
+version = "0.1.4"
 edition = "2021"
 authors = ["gaoqiangz <gaoqiangz@msn.com>"]
 keywords = ["pb", "powerbuilder", "datawindow", "dw", "parser"]
-categories = ["parser"]
+categories = ["parsing"]
 description = "DataWindow Syntax Parser"
 documentation = "https://docs.rs/dwparser"
 repository = "https://github.com/gaoqiangz/dwparser"
 license = "BSD-2-Clause"
-include = ["/Cargo.toml", "/LICENSE", "/README.md", "/src/**", "/examples/**", "/assets/**"]
+include = [
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+    "/src/**",
+    "/examples/**",
+    "/assets/**",
+]
 
 [package.metadata.docs.rs]
 all-features = true
