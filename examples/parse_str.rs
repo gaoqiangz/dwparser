@@ -30,8 +30,10 @@ fn main() {
         println!("\r\nDescribe:\r\n");
         println!("datawindow.color: {}", dw.describe("datawindow.color"));
         println!("datawindow.header.color: {}", dw.describe("datawindow.header.color"));
+        println!("datawindow.header.height: {}", dw.describe("datawindow.header.height"));
         println!("datawindow.header.1.height: {}", dw.describe("datawindow.header.1.height"));
         println!("datawindow.group.1.by: {}", dw.describe("datawindow.group.1.by"));
+        println!("datawindow.group.1.prop: {}", dw.describe("datawindow.group.1.prop"));
         println!("datawindow.table.arguments: {}", dw.describe("datawindow.table.arguments"));
         println!("datawindow.table.column.1.type: {}", dw.describe("datawindow.table.column.1.type"));
         println!("datawindow.table.column.col2.type: {}", dw.describe("datawindow.table.column.col2.type"));
@@ -41,13 +43,14 @@ fn main() {
 
         //modify
         dw.modify("datawindow.color='red'");
+        dw.modify("datawindow.header.height=200");
         dw.modify("datawindow.header.1.height=200");
         dw.modify("datawindow.table.column.col1.type=long");
         dw.modify("datawindow.group.1.prop='test prop'");
+        dw.modify("datawindow.group.1.level=1");
         dw.modify("compute_1.expression='getrow()'");
         dw.modify("destroy compute_1 destroy datawindow.table.column.col1");
         dw.modify(r#"create compute(name=compute_2 level=2 band=trailer.5 alignment="2"   )"#);
-        dw.modify(r#"create group(level=1   header.height=3232332  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))"#);
         dw.modify(r#"create group(level=2   header.height=322  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))"#);
         dw.modify(r#"create group(level=3   header.height=244  atr=test(123)    trailer.height=76 by= (  "col1",   "col2" ))"#);
     }

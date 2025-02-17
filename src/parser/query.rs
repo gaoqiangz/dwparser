@@ -92,6 +92,8 @@ pub fn modify<'a, 'b: 'a, 'c>(syn: &'a mut DWSyntax<'b>, input: &'c str) -> Resu
                                 value.as_literal().map(|v| Cow::clone(v).into_owned().into_key());
                         } else if key == "id" {
                             syn.items[index].id = value.as_number().map(|v| v as u32);
+                        } else if key == "level" {
+                            syn.items[index].level = value.as_number().map(|v| v as u32);
                         }
                         &mut syn.items[index].values
                     },
