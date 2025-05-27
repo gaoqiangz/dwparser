@@ -12,12 +12,12 @@ pub type Key<'a> = key_ci::Key<'a>;
 
 #[cfg(feature = "case_insensitive")]
 mod key_ci {
-    #[cfg(feature = "serde")]
+    #[cfg(feature = "serde_support")]
     use serde::{Deserialize, Serialize};
     use std::borrow::Cow;
 
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    #[cfg_attr(feature = "serde", serde(transparent))]
+    #[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
+    #[cfg_attr(feature = "serde_support", serde(transparent))]
     pub struct Key<'a>(Cow<'a, str>);
 
     impl<'a> From<Cow<'a, str>> for Key<'a> {

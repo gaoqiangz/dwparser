@@ -1,11 +1,11 @@
 use crate::{parser, prelude::*};
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 use std::fmt::{self, Display};
 
 /// DataWindow语法结构
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct DWSyntax<'a> {
     /// `.srd`文件对象名
     ///
@@ -14,7 +14,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// $PBExportHeader$name.srd
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub name: Option<Cow<'a, str>>,
     /// `.srd`文件备注
     ///
@@ -23,7 +23,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// $PBExportComments$comment
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub comment: Option<Cow<'a, str>>,
     /// 语法版本
     ///
@@ -40,7 +40,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// datawindow(key=value key=value)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub datawindow: HashMap<Key<'a>, Value<'a>>,
     /// `header`语法项
     ///
@@ -49,7 +49,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// header(key=value key=value)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub header: HashMap<Key<'a>, Value<'a>>,
     /// `summary`语法项
     ///
@@ -58,7 +58,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// summary(key=value key=value)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub summary: HashMap<Key<'a>, Value<'a>>,
     /// `footer`语法项
     ///
@@ -67,7 +67,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// footer(key=value key=value)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub footer: HashMap<Key<'a>, Value<'a>>,
     /// `detail`语法项
     ///
@@ -76,7 +76,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// detail(key=value key=value)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub detail: HashMap<Key<'a>, Value<'a>>,
     /// `table`语法项
     ///
@@ -85,7 +85,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// table(column=(type=type) column=(type=type) key=value key=value)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub table: ItemTable<'a>,
     /// `data`项
     ///
@@ -94,7 +94,7 @@ pub struct DWSyntax<'a> {
     /// ```txt
     /// data(0,1,2)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub data: Vec<Value<'a>>,
     /// 普通语法项
     ///
@@ -104,7 +104,7 @@ pub struct DWSyntax<'a> {
     /// text(key=value)
     /// compute(key=value key=value)
     /// ```
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub items: Vec<Item<'a>>
 }
 
@@ -209,15 +209,15 @@ impl<'a> Display for DWSyntax<'a> {
 /// item(name=name key=value key=value)
 /// ```
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct Item<'a> {
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub kind: Key<'a>,
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub name: Option<Key<'a>>,
     pub id: Option<u32>,
     pub level: Option<u32>,
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
@@ -251,11 +251,11 @@ impl<'a> Display for Item<'a> {
 /// table(column=(type=type) column=(type=type) key=value key=value)
 /// ```
 #[derive(Debug, PartialEq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct ItemTable<'a> {
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub columns: Vec<ItemTableColumn<'a>>,
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
@@ -293,11 +293,11 @@ impl<'a> Display for ItemTable<'a> {
 /// column=(name=name key=value)
 /// ```
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub struct ItemTableColumn<'a> {
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub name: Option<Key<'a>>,
-    #[cfg_attr(feature = "serde", serde(borrow))]
+    #[cfg_attr(feature = "serde_support", serde(borrow))]
     pub values: HashMap<Key<'a>, Value<'a>>
 }
 
@@ -324,38 +324,38 @@ impl<'a> Display for ItemTableColumn<'a> {
 
 /// 参数值
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_support", derive(Serialize, Deserialize))]
 pub enum Value<'a> {
     /// 字面值
     ///
     /// `literal`
-    #[cfg_attr(feature = "serde", serde(rename = "lit"))]
+    #[cfg_attr(feature = "serde_support", serde(rename = "lit"))]
     Literal(Cow<'a, str>),
     /// 双引号字符串
     ///
     /// `"abcd"`
-    #[cfg_attr(feature = "serde", serde(rename = "dqt_str"))]
+    #[cfg_attr(feature = "serde_support", serde(rename = "dqt_str"))]
     DoubleQuotedString(Cow<'a, str>),
     /// 单引号字符串
     ///
     /// `'abcd'`
-    #[cfg_attr(feature = "serde", serde(rename = "sqt_str"))]
+    #[cfg_attr(feature = "serde_support", serde(rename = "sqt_str"))]
     SingleQuotedString(Cow<'a, str>),
     /// 数值
     ///
     /// `12345`
-    #[cfg_attr(feature = "serde", serde(rename = "number"))]
+    #[cfg_attr(feature = "serde_support", serde(rename = "number"))]
     Number(f64),
     /// Key-Value值列表
     ///
     /// `(key=value key=value)`
-    #[cfg_attr(feature = "serde", serde(rename = "map"))]
+    #[cfg_attr(feature = "serde_support", serde(rename = "map"))]
     Map(HashMap<Key<'a>, Value<'a>>),
     /// 多值列表
     ///
     /// - `("abcd", "abcd")`
     /// - `(("abcd", abcd))`
-    #[cfg_attr(feature = "serde", serde(rename = "list"))]
+    #[cfg_attr(feature = "serde_support", serde(rename = "list"))]
     List(Vec<Value<'a>>)
 }
 
